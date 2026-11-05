@@ -1,0 +1,95 @@
+# Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
+
+# AI editor configs (kişisel, repo'ya ait değil)
+.claude/
+/.codex/
+/.cursor/
+/.vscode/
+/.idea/
+
+# dependencies
+node_modules/
+
+# Expo
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# Native
+.kotlin/
+.gradle/
+*.orig.*
+*.jks
+*.keystore
+*.p8
+*.p12
+*.pfx
+*.key
+*.mobileprovision
+*.provisionprofile
+*.pem
+
+# EAS signing and store credentials
+/credentials.json
+google-service-account.json
+google-services.json
+GoogleService-Info.plist
+
+# Metro
+.metro-health-check*
+
+# debug / logs
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+*.log
+/.eslintcache
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+ehthumbs.db
+
+# local env files
+/.private/
+.env
+.env.*
+!.env.example
+.envrc
+.envrc.*
+
+# typescript
+*.tsbuildinfo
+
+example
+
+# generated native folders
+/ios
+/android
+
+# Build uploads only: keep private notes, tests and marketing assets local.
+/docs/
+/tests/
+/assets/screenshots/
+/assets/store-listing/
+/scripts/prepare-play-marketing.cjs
+/scripts/prepare-play-upload.cjs
+/.git/
+
+# Locally downloaded build artifacts
+/release-artifacts/
+*.apk
+*.apks
+*.aab
+*.ipa
+/*.tgz
+
+# Generated test reports
+/coverage/
+
+# The local release configuration is used by EAS Build.
+!/app.json
+!/eas.json
