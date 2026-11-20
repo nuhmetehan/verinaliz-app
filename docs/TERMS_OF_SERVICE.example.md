@@ -1,5 +1,5 @@
 # Verinaliz Kullanım Koşulları
-**Son Güncelleme:** 2 Kasım 2026
+**Son Güncelleme:** 20 Kasım 2026
 
 Verinaliz uygulamasını ("Uygulama") kullanarak aşağıdaki Kullanım Koşullarını ("Koşullar") kabul etmiş sayılırsınız. Lütfen bu koşulları dikkatlice okuyunuz.
 
@@ -25,8 +25,8 @@ Verinaliz; ambalajlı gıda ve kozmetik/kişisel bakım ürünlerinin barkodlar�
 ---
 
 ### 4. Yapay Zeka (AI) İçerik Analizi ve Fotoğraf Çekim Kuralları
-Verinaliz; ürün ambalajındaki (gıda veya kozmetik) içindekiler yazısını okumak, katkı/bileşenleri sınıflandırmak ve öğün görsellerini yaklaşık olarak incelemek için üçüncü taraf yapay zeka teknolojilerinden (Google Generative AI) yararlanır:
-* **Fotoğrafların Saklanmaması:** Analiz amacıyla çekilen fotoğraflar sunucularımızda **kesinlikle kaydedilmez ve saklanmaz**. Görsel sadece analiz süresince geçici bellekte tutulur, Google AI servislerine güvenli şekilde iletilir ve istek tamamlandıktan sonra geçici bellek çalışma ortamı tarafından geri kazanılır. Google tarafındaki işleme, Google'ın kendi koşullarına tabidir.
+Verinaliz; ürün ambalajındaki (gıda veya kozmetik) içindekiler yazısını okumak, katkı/bileşenleri sınıflandırmak ve öğün görsellerini yaklaşık olarak incelemek için üçüncü taraf yapay zeka teknolojilerinden (Cloudflare Workers AI) yararlanır:
+* **Görsel analizi.** Verinaliz sunucusu, dosya biçimini denetleyip konum ve kamera metaverilerini kaldırır. Fotoğrafı HTTPS üzerinden Cloudflare Workers AI’a gönderir. Gemma 4 etiket veya öğün görselini doğrudan analiz eder. Görsel sunucumuzda yalnızca işlem sırasında geçici bellekte tutulur. AI Gateway kullanıldığında istek ve yanıt gövdelerinin kaydı kapalıdır. Cloudflare faturalandırma için teknik kullanım kayıtları tutabilir. Sağlayıcı yurt dışında veri işleyebilir.
 * **Öğün Analizi Sınırlaması:** Öğün analizi **kesin ölçüm değildir**; pişirme yağı, sos, alerjen, gramaj gibi görselden anlaşılamayan unsurlar olabileceğinden yalnızca yaklaşık aralıklar sunulur. Yapay zeka hata yapabilir; son karar kullanıcıya aittir.
 * **Fotoğraf Çekiminde Kullanıcı Yükümlülükleri:**
   1. Kullanıcı, yalnızca ambalajın **"İçindekiler / Besin Değerleri" bölümünün** veya **öğününün** net bir fotoğrafını çekmeyi taahhüt eder.
@@ -45,7 +45,7 @@ Verinaliz; ürün ambalajındaki (gıda veya kozmetik) içindekiler yazısını 
 ---
 
 ### 6. Kullanım Kotaları, Hesap Girişi ve Hizmet Sürekliliği
-* Sistem kaynaklarını korumak ve adil kullanımı sağlamak amacıyla yapay zeka görsel analizi özelliklerini kullanabilmek için Google ile veya önceden oluşturulmuş e-posta hesabıyla giriş yapılması gerekmektedir. Her kullanıcı hesabına günlük ücretsiz **etiket analizi limiti (gıda ve kozmetik için ortak, günde 5 analiz)** ve ayrıca **öğün analizi limiti (günde 2 analiz)** tanımlanır; haklar her gün Türkiye saatiyle gece yarısı yenilenir. Bir analizin tamamlanmasını beklemeden aynı anda birden fazla analiz başlatılamaz. Genel API isteklerinde güvenlik sınırlamaları da uygulanır.
+* Giriş yapan her hesap son yedi gün içinde üç başarılı etiket ve iki başarılı öğün analizi yapabilir. Aynı istekteki iki ambalaj fotoğrafı bir etiket hakkı kullanır. Her hak, kullanıldığı andan yedi gün sonra açılır. Genel API hız sınırları ayrıca uygulanır.
 * Verinaliz, hizmet özelliklerini önceden haber vermeksizin güncelleme, kota politikalarını değiştirme veya geçici bakım durumlarında durdurma hakkını saklı tutar.
 
 ---

@@ -29,7 +29,7 @@ Uygulama bilgi amaçlıdır; alerji, sağlık veya beslenme kararlarında ambala
 | **Geçmiş ve favoriler** | Barkod taramalarına ve fotoğraf analizlerine yeniden ulaşma; ürünleri favorilere kaydetme. |
 | **Topluluk katkısı** | Eksik ürün bildirme ve hatalı ürün bilgileri için geri bildirim gönderme. |
 
-AI analizleri için Google ile veya önceden oluşturulmuş e-posta hesabıyla giriş ve hesap bazlı günlük kullanım kotası bulunur. Barkod tarama ve katkı rehberi giriş yapmadan kullanılabilir.
+AI analizleri için Google ile veya önceden oluşturulmuş e-posta hesabıyla giriş ve son 7 günde hesap başına 3 etiket ve 2 öğün analizi hakkı bulunur. Barkod tarama ve katkı rehberi giriş yapmadan kullanılabilir.
 
 ## Ekran görüntüleri
 
@@ -41,7 +41,7 @@ AI analizleri için Google ile veya önceden oluşturulmuş e-posta hesabıyla g
 
 ## Nasıl çalışır?
 
-Mobil uygulama barkodu okur veya kullanıcının kamerayla çektiği etiket/öğün görüntüsünü alır. Ayrı çalışan **Node.js ve Express backend**, barkod için Open Food Facts ile Open Beauty Facts verilerini sorgular; görüntü analizini Google Gemini üzerinden yürütür. Sonuçlar uygulamada içerik, alerjen, katkı ve besin bilgisi olarak gösterilir. Yönetici paneli, eksik ürün ve hatalı veri bildirimlerinin incelenmesini sağlar.
+Mobil uygulama barkodu okur veya kullanıcının kamerayla çektiği etiket/öğün görüntüsünü alır. Ayrı çalışan **Node.js ve Express backend**, barkod için Open Food Facts ile Open Beauty Facts verilerini sorgular; görüntü analizini Cloudflare Workers AI (Gemma 4) üzerinden yürütür. Sonuçlar uygulamada içerik, alerjen, katkı ve besin bilgisi olarak gösterilir. Yönetici paneli, eksik ürün ve hatalı veri bildirimlerinin incelenmesini sağlar.
 
 Backend ayrıca Google ile giriş akışını Supabase Auth üzerinden yönetir, analiz kotalarını PostgreSQL'de izler ve API isteklerine hız sınırı uygular. Ürün sorgulama, giriş ve AI analizi için erişilebilir bir backend servisi gerekir; backend kaynak kodu ayrı bir özel depoda tutulur.
 
@@ -50,7 +50,7 @@ Backend ayrıca Google ile giriş akışını Supabase Auth üzerinden yönetir,
 - **Tek arayüzde iki keşif yolu:** Barkodu olan ürünler doğrudan aranıyor; etiketi okunması gereken ürünlerde kamera tabanlı analiz devreye giriyor.
 - **Açıklanabilir sonuçlar:** Katkılar, alerjenler ve besin değerleri ayrı bölümlerde gösteriliyor. Risk renkleri hızlı taramayı kolaylaştırıyor; tek başına tıbbi hüküm olarak sunulmuyor.
 - **Yerel geçmiş:** Tarama ve analiz kayıtları cihazda tutuluyor. Mobil oturum belirteçleri Expo SecureStore ile saklanıyor.
-- **Gizlilik odaklı fotoğraf akışı:** Fotoğraflar analiz için sunucu üzerinden Google Gemini'ye iletiliyor; sunucuda kalıcı olarak saklanmıyor. Kamera izinleri gerekli kullanım alanlarıyla sınırlandırılmış durumda.
+- **Gizlilik odaklı fotoğraf akışı:** Fotoğraflar analiz için sunucu üzerinden Cloudflare Workers AI (Gemma 4) hizmetine iletiliyor; sunucuda kalıcı olarak saklanmıyor. Kamera izinleri gerekli kullanım alanlarıyla sınırlandırılmış durumda.
 - **İçerik düzeltme döngüsü:** Eksik ürün ve hata bildirimleri yönetici incelemesine iletilerek ürün bilgilerinin iyileştirilmesini sağlıyor.
 
 ## Teknolojiler
@@ -61,7 +61,7 @@ Backend ayrıca Google ile giriş akışını Supabase Auth üzerinden yönetir,
 | Kamera ve yerel veri | Expo Camera, SecureStore, AsyncStorage |
 | Sunucu | Node.js, Express, REST API, yönetici paneli (ayrı özel depo) |
 | Veri ve kimlik doğrulama | Supabase PostgreSQL, Supabase Auth, Google OAuth |
-| Ürün verisi ve AI | Open Food Facts, Open Beauty Facts, Google Gemini |
+| Ürün verisi ve AI | Open Food Facts, Open Beauty Facts, Cloudflare Workers AI (Gemma 4) |
 | Dağıtım | EAS Build ve expo-updates |
 
 ## Yerel geliştirme

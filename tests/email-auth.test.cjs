@@ -10,7 +10,7 @@ function fixture({ profileFails = false, passwordFails = false } = {}) {
     post: async (url, body) => { requests.push({ url, body }); if (passwordFails) throw Error('rejected');
       return { data: { access_token: 'access', refresh_token: 'refresh', expires_at: 123 } }; },
     get: async (url, options) => { requests.push({ url, options }); if (profileFails) throw Error('profile unavailable');
-      return { data: { user: { id: 'review-user', email: 'review@example.com' }, total: 5, remaining: 4, meal_total: 2, meal_remaining: 1 } }; },
+      return { data: { user: { id: 'review-user', email: 'review@example.com' }, total: 3, remaining: 2, next_available_at: "2026-11-27T12:00:00Z", meal_total: 2, meal_remaining: 1 } }; },
   };
   const modules = {
     axios: { __esModule: true, default: axios, isAxiosError: () => false },
@@ -35,7 +35,8 @@ test('email sign-in verifies profile, stores tokens without password and notifie
   assert.equal(f.requests[0].body.email, 'review@example.com');
   assert.equal(f.requests[0].body.password, '  password  ');
   assert.equal(f.requests[1].options.headers.Authorization, 'Bearer access');
-  assert.equal(result.quota.remaining, 4);
+  assert.equal(result.quota.remaining, 2);
+  assert.equal(result.quota.next_available_at, "2026-11-27T12:00:00Z");
   assert.equal(result.session.user.id, 'review-user');
   assert.equal(sessions.length, 1);
   assert.equal(f.writes.length, 1);

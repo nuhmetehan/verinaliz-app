@@ -37,14 +37,14 @@ const GUIDE_STEPS: GuideStep[] = [
     tag: 'ADIM 2 / 4',
     title: 'AI Gıda & Kozmetik Analizi',
     description:
-      'Google hesabınızla giriş yaparak hem gıda (İçindekiler & Besin Tablosu) hem de kozmetik ürünlerin (İçindekiler / Ingredients) etiketlerini fotoğraflayıp çok daha doğru biçimde analiz edebilirsiniz (günlük 5 etiket analiz hakkı).',
+      'Google hesabınızla giriş yaparak hem gıda (İçindekiler & Besin Tablosu) hem de kozmetik ürünlerin (İçindekiler / Ingredients) etiketlerini fotoğraflayıp çok daha doğru biçimde analiz edebilirsiniz (son 7 günde 3 etiket analiz hakkı).',
     icon: <MaterialIcons name="document-scanner" size={36} color={colors.primary} />,
   },
   {
     tag: 'ADIM 3 / 4',
     title: 'AI Öğün Analizi',
     description:
-      'Öğününüzün fotoğrafını çekerek görünen porsiyonları inceleyebilirsiniz (günlük 2 öğün hakkı). Kesin ölçüm değildir; pişirme yağı, sos, alerjen, gramaj vb. görselden anlaşılmayan içerikler olabileceği için yalnızca yaklaşık aralık sunulur, son karar kullanıcıya aittir.',
+      'Öğününüzün fotoğrafını çekerek görünen porsiyonları inceleyebilirsiniz (son 7 günde 2 öğün hakkı). Kesin ölçüm değildir; pişirme yağı, sos, alerjen, gramaj vb. görselden anlaşılmayan içerikler olabileceği için yalnızca yaklaşık aralık sunulur, son karar kullanıcıya aittir.',
     icon: <MaterialIcons name="restaurant" size={36} color={colors.primary} />,
   },
   {

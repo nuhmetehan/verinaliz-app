@@ -54,6 +54,10 @@ export type QuotaInfo = {
   remaining: number;
   meal_total?: number;
   meal_remaining?: number;
+  label_pending?: number;
+  meal_pending?: number;
+  next_available_at?: string | null;
+  meal_next_available_at?: string | null;
 };
 
 type AuthListener = (session: AuthSession | null) => void;
@@ -212,10 +216,14 @@ export async function completeAuthWithTokens(params: {
   };
 
   const quota: QuotaInfo = {
-    total: response.data?.total ?? 5,
-    remaining: response.data?.remaining ?? 5,
+    total: response.data?.total ?? 3,
+    remaining: response.data?.remaining ?? 0,
     meal_total: response.data?.meal_total ?? 2,
-    meal_remaining: response.data?.meal_remaining ?? 2,
+    meal_remaining: response.data?.meal_remaining ?? 0,
+    label_pending: response.data?.label_pending,
+    meal_pending: response.data?.meal_pending,
+    next_available_at: response.data?.next_available_at ?? null,
+    meal_next_available_at: response.data?.meal_next_available_at ?? null,
   };
 
   const session: AuthSession = {

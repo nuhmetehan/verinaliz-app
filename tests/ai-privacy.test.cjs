@@ -13,6 +13,6 @@ test('a photo cannot be submitted without review and consent is scoped to its an
   for (const scope of ['label', 'meal']) {
     const headers = exports.aiConsentHeaders(scope, true);
     assert.equal(headers['X-Verinaliz-Content-Scope'], scope);
-    assert.equal(headers['X-Verinaliz-AI-Consent'], 'photo-analysis-v1');
+    assert.equal(headers['X-Verinaliz-AI-Consent'], 'photo-analysis-cloudflare-v2');
   }
 });

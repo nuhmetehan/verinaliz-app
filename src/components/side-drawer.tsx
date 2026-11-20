@@ -105,7 +105,7 @@ export function SideDrawer({ visible, onClose, onOpenHowItWorks, onOpenLegal }: 
         await clearLocalData(['scans', 'photos', 'favorites']);
       }
       onClose();
-      Alert.alert('Hesap Silindi', 'Hesabınız ve hesaba bağlı kota kayıtlarınız silindi. Günlük kötüye kullanım önleme özeti gizlilik politikasındaki süre boyunca saklanır.');
+      Alert.alert('Hesap Silindi', 'Hesabınız ve hesaba bağlı kota kayıtlarınız silindi. Geçici kötüye kullanım önleme özeti gizlilik politikasındaki süre boyunca saklanır.');
     } catch (error) {
       const message =
         isAxiosError(error) && error.response?.data?.error
@@ -118,7 +118,7 @@ export function SideDrawer({ visible, onClose, onOpenHowItWorks, onOpenLegal }: 
   function handleDeleteAccount() {
     Alert.alert(
       'Hesabımı Sil',
-      'Google hesap bilgileriniz ve günlük kota kayıtlarınız sunucularımızdan kalıcı olarak silinecek. Günlük hakların sıfırlanmasını önlemek için bugünün kullanım özeti gün değiştikten sonraki temizlik döngüsüne kadar saklanır. Bu işlem geri alınamaz. Cihazınızdaki geçmiş ve favoriler de silinsin mi?',
+      'Hesap bilgileriniz silinecek. Yeniden açılan hesaplarda kotayı korumak için takma adlı kullanım kaydı her analizden yedi gün sonraki temizlik döngüsüne kadar saklanır. Bu işlem geri alınamaz. Cihazınızdaki geçmiş ve favoriler de silinsin mi?',
       [
         { text: 'İptal', style: 'cancel' },
         {

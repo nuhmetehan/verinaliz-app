@@ -1,4 +1,3 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AntDesign, Entypo, MaterialIcons } from '@expo/vector-icons';
 import axios, { isAxiosError } from 'axios';
 import { useEffect, useRef, useState } from 'react';
@@ -52,7 +51,6 @@ const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL;
 const ANALYZE_IMAGE_API_URL = `${API_BASE_URL}/api/analyze-ingredients-image`;
 const ANALYZE_MEAL_API_URL = `${API_BASE_URL}/api/analyze-meal-image`;
 const ANALYSIS_QUOTA_API_URL = `${API_BASE_URL}/api/analysis-quota`;
-const DAILY_QUOTA_STORAGE_KEY = '@nutriveri_daily_quota';
 
 export const MEAL_PLATE_DISCLAIMER_TEXT =
   'Kesin ölçüm değildir; pişirme yağı, sos, alerjen, gramaj vb. görselden anlaşılmayan içerikler olabileceği için yalnızca yaklaşık aralık sunulur. Yapay zeka hata yapabilir, son karar kullanıcıya aittir.';
@@ -62,50 +60,15 @@ export type AnalysisQuota = {
   remaining: number;
   meal_total?: number;
   meal_remaining?: number;
+  label_pending?: number;
+  meal_pending?: number;
+  next_available_at?: string | null;
+  meal_next_available_at?: string | null;
 };
 
-function getTodayDateString(): string {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-}
-
-async function getStoredQuota(userId: string): Promise<AnalysisQuota | null> {
-  try {
-    const raw = await AsyncStorage.getItem(DAILY_QUOTA_STORAGE_KEY);
-    if (!raw) return null;
-    const data = JSON.parse(raw);
-    if (
-      data?.userId === userId &&
-      data?.date === getTodayDateString() &&
-      typeof data?.remaining === 'number'
-    ) {
-      return {
-        total: data.total ?? 5,
-        remaining: data.remaining,
-        meal_total: data.meal_total ?? 2,
-        meal_remaining: typeof data.meal_remaining === 'number' ? data.meal_remaining : (data.meal_total ?? 2),
-      };
-    }
-    return null;
-  } catch {
-    return null;
-  }
-}
-
-async function saveStoredQuota(userId: string, quotaData: AnalysisQuota): Promise<void> {
-  try {
-    const payload = {
-      userId,
-      date: getTodayDateString(),
-      total: quotaData.total,
-      remaining: quotaData.remaining,
-      meal_total: quotaData.meal_total ?? 2,
-      meal_remaining: quotaData.meal_remaining ?? 2,
-    };
-    await AsyncStorage.setItem(DAILY_QUOTA_STORAGE_KEY, JSON.stringify(payload));
-  } catch (error) {
-    console.error('Kota yerel depolamaya kaydedilemedi:', error);
-  }
+function formatQuotaTime(value?: string | null) {
+  if (!value || !Number.isFinite(Date.parse(value))) return '';
+  return new Date(value).toLocaleString('tr-TR', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
 }
 
 export type DetectedAdditive = {
@@ -176,6 +139,7 @@ export type AnalysisResult = {
   estimated_totals?: EstimatedMealTotals | null;
   unseen_factors?: string[];
   disclaimer?: string | null;
+  quota?: AnalysisQuota;
   remaining_quota?: number;
   meal_remaining_quota?: number;
 };
@@ -441,6 +405,7 @@ function IngredientAnalysisContent({
   const [currentTitle, setCurrentTitle] = useState<string>(initialRecord?.title || 'Analiz Tamamlandı');
   const [currentRecordId, setCurrentRecordId] = useState<string | null>(initialRecord?.id ?? null);
   const [showRenameModal, setShowRenameModal] = useState(false);
+  const [quotaRefresh, setQuotaRefresh] = useState(0);
   const [quota, setQuota] = useState<AnalysisQuota | null>(null);
   const [authSession, setAuthSession] = useState<AuthSession | null>(null);
   const [isAuthChecking, setIsAuthChecking] = useState(true);
@@ -484,13 +449,6 @@ function IngredientAnalysisContent({
           return;
         }
 
-        // 1. Önce yerel hafızadaki bu kullanıcıya ait bugünün kotasını anında yükle
-        const cached = await getStoredQuota(storedSession.user.id);
-        if (cached) {
-          setQuota(cached);
-        }
-
-        // 2. Ardından sunucudan güncel durumu sorgula
         const token = await getValidAccessToken();
         if (!token) {
           setAuthSession(null);
@@ -504,19 +462,7 @@ function IngredientAnalysisContent({
           signal: controller.signal,
         });
 
-        if (typeof response.data?.remaining === 'number') {
-          const freshQuota: AnalysisQuota = {
-            total: response.data.total ?? 5,
-            remaining: response.data.remaining,
-            meal_total: response.data.meal_total ?? 2,
-            meal_remaining:
-              typeof response.data.meal_remaining === 'number'
-                ? response.data.meal_remaining
-                : (response.data.meal_total ?? 2),
-          };
-          setQuota(freshQuota);
-          await saveStoredQuota(storedSession.user.id, freshQuota);
-        }
+        if (!controller.signal.aborted && typeof response.data?.remaining === 'number') setQuota(response.data);
       } catch (error) {
         if (!controller.signal.aborted) {
           if (isAxiosError(error) && error.response?.status === 401) {
@@ -524,6 +470,7 @@ function IngredientAnalysisContent({
             setAuthSession(null);
             setQuota(null);
           } else {
+            setQuota(null);
             console.error('Kota sorgulanamadı.');
           }
         }
@@ -537,7 +484,16 @@ function IngredientAnalysisContent({
     void loadSessionAndQuota();
 
     return () => controller.abort();
-  }, []);
+  }, [quotaRefresh]);
+
+  useEffect(() => {
+    const times = [quota?.next_available_at, quota?.meal_next_available_at]
+      .filter((t): t is string => Boolean(t)).map(Date.parse).filter(Number.isFinite);
+    if (quota?.label_pending || quota?.meal_pending) times.push(Date.now() + 5000);
+    if (!times.length) return;
+    const timer = setTimeout(() => setQuotaRefresh(n => n + 1), Math.max(1000, Math.min(...times) - Date.now() + 500));
+    return () => clearTimeout(timer);
+  }, [quota]);
 
   async function handleGoogleSignIn() {
     if (isSigningIn) return;
@@ -547,7 +503,6 @@ function IngredientAnalysisContent({
       if (authResult) {
         setAuthSession(authResult.session);
         setQuota(authResult.quota);
-        await saveStoredQuota(authResult.session.user.id, authResult.quota);
       }
     } catch (error) {
       let message = 'Google ile giriş yapılırken bir sorun oluştu. Lütfen tekrar deneyin.';
@@ -593,12 +548,12 @@ function IngredientAnalysisContent({
     }
   }
 
-  const labelTotal = quota?.total ?? 5;
+  const labelTotal = quota?.total ?? 3;
   const labelRemaining = Math.min(quota?.remaining ?? labelTotal, labelTotal);
   const mealTotal = quota?.meal_total ?? 2;
   const mealRemaining = Math.min(quota?.meal_remaining ?? mealTotal, mealTotal);
 
-  const activeTotal = analysisMode === 'meal' ? mealTotal : labelTotal;
+  const nextTime = formatQuotaTime(analysisMode === 'meal' ? quota?.meal_next_available_at : quota?.next_available_at);
   const activeRemaining = analysisMode === 'meal' ? mealRemaining : labelRemaining;
 
   async function takePhoto() {
@@ -610,9 +565,7 @@ function IngredientAnalysisContent({
     if (activeRemaining === 0) {
       Alert.alert(
         'Limit Doldu',
-        analysisMode === 'meal'
-          ? 'Günlük öğün analizi hakkınız dolmuştur. Yarın tekrar deneyebilirsiniz.'
-          : 'Günlük etiket analiz hakkınız dolmuştur. Yarın tekrar deneyebilirsiniz.',
+        nextTime ? 'Sıradaki hakkınız ' + nextTime + ' itibarıyla açılır.' : 'Bu analiz türü için son yedi günlük hakkınız dolu.',
       );
       return;
     }
@@ -638,7 +591,7 @@ function IngredientAnalysisContent({
 
   function confirmAnalysis() {
     if (!selectedAssets.length || isAnalyzing || !photoReviewed) return;
-    Alert.alert('Google Gemini ile Analiz',
+    Alert.alert('Cloudflare ile Analiz',
       AI_PRIVACY_NOTICE,
       [{ text: 'Vazgeç', style: 'cancel' }, { text: 'Gönder ve Analiz Et', onPress: () => void analyzeSelectedImages() }]);
   }
@@ -709,25 +662,8 @@ function IngredientAnalysisContent({
       const analysisResult = response.data;
       setResult(analysisResult);
 
-      if (isMealMode && typeof analysisResult.meal_remaining_quota === 'number') {
-        const nextQuota: AnalysisQuota = {
-          total: quota?.total ?? 5,
-          remaining: quota?.remaining ?? 5,
-          meal_total: quota?.meal_total ?? 2,
-          meal_remaining: analysisResult.meal_remaining_quota,
-        };
-        setQuota(nextQuota);
-        await saveStoredQuota(authSession.user.id, nextQuota);
-      } else if (!isMealMode && typeof analysisResult.remaining_quota === 'number') {
-        const nextQuota: AnalysisQuota = {
-          total: quota?.total ?? 5,
-          remaining: analysisResult.remaining_quota,
-          meal_total: quota?.meal_total ?? 2,
-          meal_remaining: quota?.meal_remaining ?? 2,
-        };
-        setQuota(nextQuota);
-        await saveStoredQuota(authSession.user.id, nextQuota);
-      }
+      if (analysisResult.quota) setQuota(analysisResult.quota);
+      else setQuotaRefresh(n => n + 1);
 
       const riskLevel = calculatePhotoRiskLevel(analysisResult);
       const generatedTitle = generatePhotoAnalysisTitle(analysisResult);
@@ -757,38 +693,12 @@ function IngredientAnalysisContent({
           errorMessage =
             error.response?.data?.error ??
             'Oturumunuz sona erdi. Lütfen Google hesabınızla tekrar giriş yapın.';
-        } else if (error.response?.status === 429) {
-          const errorCode = error.response?.data?.code;
-          const isQuotaCode =
-            errorCode === 'QUOTA_EXCEEDED' || errorCode === 'MEAL_QUOTA_EXCEEDED';
-
-          if (isQuotaCode) {
-            const exhaustedQuota: AnalysisQuota = isMealMode
-              ? {
-                  total: quota?.total ?? 5,
-                  remaining: quota?.remaining ?? 5,
-                  meal_total: quota?.meal_total ?? 2,
-                  meal_remaining: 0,
-                }
-              : {
-                  total: quota?.total ?? 5,
-                  remaining: 0,
-                  meal_total: quota?.meal_total ?? 2,
-                  meal_remaining: quota?.meal_remaining ?? 2,
-                };
-            setQuota(exhaustedQuota);
-            await saveStoredQuota(authSession.user.id, exhaustedQuota);
-          }
-
-          errorMessage =
-            error.response?.data?.error ??
-            (isQuotaCode
-              ? isMealMode
-                ? `Günlük ${quota?.meal_total ?? 2} öğün analizi limitinize ulaştınız. Yarın tekrar deneyebilirsiniz.`
-                : `Günlük ${quota?.total ?? 5} etiket analizi limitinize ulaştınız. Yarın tekrar deneyebilirsiniz.`
-              : 'Çok fazla istek gönderildi veya servis geçici olarak yoğun. Lütfen biraz sonra tekrar deneyin.');
         } else if (error.response?.data?.error) {
-          errorMessage = error.response.data.error;
+          const details = error.response.data;
+          if (details.quota) setQuota(details.quota);
+          errorMessage = details.error;
+          const reset = formatQuotaTime(details.provider_reset_at);
+          if (reset) errorMessage += ' Ortak ücretsiz kapasite ' + reset + ' itibarıyla yenilenir.';
         } else if (error.code === 'ECONNABORTED') {
           errorMessage =
             'Analiz isteği zaman aşımına uğradı. İnternet bağlantınızı kontrol edip tekrar deneyin.';
@@ -929,7 +839,7 @@ function IngredientAnalysisContent({
                       styles.modeTabSub,
                       analysisMode === 'label' && styles.modeTabSubActive,
                     ]}>
-                    Gıda & Kozmetik ({labelRemaining}/{labelTotal})
+                    Gıda & Kozmetik {quota && <>({labelRemaining}/{labelTotal})</>}
                   </Text>
                 </View>
               </Pressable>
@@ -960,7 +870,7 @@ function IngredientAnalysisContent({
                       styles.modeTabSub,
                       analysisMode === 'meal' && styles.modeTabSubActive,
                     ]}>
-                    Yaklaşık Tahmin ({mealRemaining}/{mealTotal})
+                    Yaklaşık Tahmin {quota && <>({mealRemaining}/{mealTotal})</>}
                   </Text>
                 </View>
               </Pressable>
@@ -1008,7 +918,7 @@ function IngredientAnalysisContent({
                       <View style={styles.authCardTextGroup}>
                         <Text style={styles.authCardTitle}>Hesabınızla Giriş Yapın</Text>
                         <Text style={styles.authCardSubtitle}>
-                          Günlük {labelTotal} etiket (gıda/kozmetik) ve {mealTotal} öğün analiz hakkınızı hesabınıza tanımlamak için giriş yapın.
+                          Yedi günde {labelTotal} etiket ve {mealTotal} öğün analizi için giriş yapın.
                         </Text>
                       </View>
                     </View>
@@ -1035,7 +945,6 @@ function IngredientAnalysisContent({
                     <EmailSignInButton disabled={isSigningIn} onSignedIn={({ session, quota: nextQuota }) => {
                       setAuthSession(session);
                       setQuota(nextQuota);
-                      void saveStoredQuota(session.user.id, nextQuota).catch(() => {});
                     }} />
                   </View>
                 ) : (
@@ -1075,19 +984,18 @@ function IngredientAnalysisContent({
                               ? styles.quotaBadgeTextWarning
                               : styles.quotaBadgeTextNormal,
                         ]}>
-                        {analysisMode === 'meal'
-                          ? `Günlük Öğün Analiz Hakkı: ${activeRemaining} / ${activeTotal}`
-                          : `Günlük Etiket Analiz Hakkı (Gıda & Kozmetik): ${activeRemaining} / ${activeTotal}`}
+                        {quota ? <>Son 7 gün · Etiket {labelRemaining}/{labelTotal} · Öğün {mealRemaining}/{mealTotal}</> : 'Kota bilgisi alınamadı'}
                       </Text>
+                      {nextTime ? <Text style={styles.disclaimerText}>Sıradaki {analysisMode === 'meal' ? 'öğün' : 'etiket'} hakkı {nextTime}</Text> : null}
                     </View>
 
                     {activeRemaining === 0 ? (
                       <View style={styles.quotaWarningCard}>
                         <Entypo name="warning" size={18} color={colors.onSurface} style={styles.disclaimerIcon} />
                         <Text style={styles.disclaimerText}>
-                          {analysisMode === 'meal'
-                            ? 'Günlük Limit Doldu: Bu hesap için günlük öğün analizi hakkınız dolmuştur. Yarın tekrar deneyebilirsiniz.'
-                            : 'Günlük Limit Doldu: Bu hesap için günlük gıda/kozmetik etiket analiz hakkınız dolmuştur. Yarın tekrar deneyebilirsiniz.'}
+                          {(analysisMode === 'meal' ? quota?.meal_pending : quota?.label_pending)
+                            ? 'Devam eden analiziniz tamamlandığında haklarınız güncellenecek.'
+                            : 'Bu analiz türü için son yedi günlük hakkınız dolu.'}
                         </Text>
                       </View>
                     ) : (
@@ -1185,7 +1093,7 @@ function IngredientAnalysisContent({
                   accessibilityState={{ checked: photoReviewed }}
                   onPress={() => setReviewedPhotos(photoReviewed ? null : { assets: selectedAssets, mode: analysisMode })} style={styles.privacyNoticeRuleRow}>
                   <MaterialIcons name={photoReviewed ? 'check-box' : 'check-box-outline-blank'} size={24} color={colors.primary} />
-                  <Text style={[styles.privacyNoticeText, { flex: 1 }]}>Fotoğrafları inceledim; kişisel, hassas veya gizli bilgi içermediğini ve açıklanan Google Gemini aktarımını onaylıyorum.</Text>
+                  <Text style={[styles.privacyNoticeText, { flex: 1 }]}>Fotoğrafları inceledim; kişisel, hassas veya gizli bilgi içermediğini ve Cloudflare’a aktarımı onaylıyorum.</Text>
                 </Pressable>
                 {/* Analizi Başlat Butonu */}
                 <Pressable
@@ -1899,7 +1807,7 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   quotaBadge: {
-    flexDirection: 'row',
+    flexDirection: 'column',
     alignItems: 'center',
     alignSelf: 'center',
     paddingHorizontal: 16,
