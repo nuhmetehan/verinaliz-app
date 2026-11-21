@@ -1,17 +1,18 @@
-import { Feather, FontAwesome5 } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 import type { BarcodeScanningResult, BarcodeSettings } from 'expo-camera';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Animated, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Animated, AppState, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { IngredientAnalysisModal } from '@/components/ingredient-analysis-modal';
-import { LEGAL_CONSENT_STORAGE_KEY, LegalModal } from '@/components/legal-modal';
+import { LegalModal } from '@/components/legal-modal';
 import { SideDrawer } from '@/components/side-drawer';
 import { ONBOARDING_STORAGE_KEY, WelcomeGuideModal } from '@/components/welcome-guide-modal';
+import { useReducedMotion } from '@/hooks/use-reduced-motion';
 import { colors, radius, spacing, typography } from '@/theme/theme';
 
 const barcodeScannerSettings: BarcodeSettings = {
@@ -24,11 +25,17 @@ export default function ScanScreen() {
     openLegal?: string;
     legalTab?: 'privacy' | 'terms';
   }>();
-  const [permission, requestPermission] = useCameraPermissions();
+  const [permission, requestPermission, getPermission] = useCameraPermissions();
   const [scannerFocused, setScannerFocused] = useState(false);
+  const [cameraReady, setCameraReady] = useState(false);
+  const [cameraError, setCameraError] = useState(false);
+  const [cameraAttempt, setCameraAttempt] = useState(0);
   useFocusEffect(useCallback(() => {
     setScannerFocused(true);
-    return () => setScannerFocused(false);
+    return () => {
+      setScannerFocused(false);
+      setCameraReady(false);
+    };
   }, []));
   const [isReading, setIsReading] = useState(false);
   const [isTorchEnabled, setIsTorchEnabled] = useState(false);
@@ -36,64 +43,31 @@ export default function ScanScreen() {
   const [isDrawerVisible, setIsDrawerVisible] = useState(false);
   const [isGuideVisible, setIsGuideVisible] = useState(false);
   const [isAnalysisModalVisible, setIsAnalysisModalVisible] = useState(false);
-  const [analysisModalMode, setAnalysisModalMode] = useState<'label' | 'meal'>('label');
   const [isLegalModalVisible, setIsLegalModalVisible] = useState(false);
-  const [isFirstLaunchLegal, setIsFirstLaunchLegal] = useState(false);
   const [legalModalTab, setLegalModalTab] = useState<'privacy' | 'terms'>('privacy');
   const isScanLocked = useRef(false);
   const navigationTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const unlockTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reducedMotion = useReducedMotion();
   const [viewfinderPulse] = useState(() => new Animated.Value(0));
 
   useEffect(() => {
-    async function checkFirstTimeUser() {
-      try {
-        const [hasAcceptedLegal, hasSeenGuide] = await Promise.all([
-          AsyncStorage.getItem(LEGAL_CONSENT_STORAGE_KEY),
-          AsyncStorage.getItem(ONBOARDING_STORAGE_KEY),
-        ]);
-
-        if (!hasAcceptedLegal) {
-          setIsFirstLaunchLegal(true);
-          setLegalModalTab('privacy');
-          setIsLegalModalVisible(true);
-        } else if (!hasSeenGuide) {
-          setIsGuideVisible(true);
-        }
-      } catch (error) {
-        console.error('İlk açılış durumu kontrol edilemedi:', error);
-      }
-    }
-    void checkFirstTimeUser();
+    let active = true;
+    void AsyncStorage.getItem(ONBOARDING_STORAGE_KEY).then(seen => {
+      if (active && !seen) setIsGuideVisible(true);
+    }).catch(() => {});
+    return () => { active = false; };
   }, []);
 
-  const handleAcceptLegal = async () => {
-    try {
-      await AsyncStorage.setItem(LEGAL_CONSENT_STORAGE_KEY, 'true');
-    } catch (error) {
-      console.error('Yasal onay durumu kaydedilemedi:', error);
-    }
-    setIsLegalModalVisible(false);
-    setIsFirstLaunchLegal(false);
-
-    try {
-      const hasSeenGuide = await AsyncStorage.getItem(ONBOARDING_STORAGE_KEY);
-      if (!hasSeenGuide) {
-        setTimeout(() => {
-          setIsGuideVisible(true);
-        }, 300);
-      }
-    } catch (error) {
-      console.error('Rehber durumu kontrol edilemedi:', error);
-    }
-  };
-
-
   useEffect(() => {
-    if (permission?.status === 'undetermined') {
-      requestPermission();
-    }
-  }, [permission?.status, requestPermission]);
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') {
+        void getPermission().catch((error) => console.error('Kamera izni kontrol edilemedi:', error));
+      }
+    });
+
+    return () => subscription.remove();
+  }, [getPermission]);
 
   useEffect(() => {
     return () => {
@@ -110,7 +84,7 @@ export default function ScanScreen() {
       setIsReading(true);
       viewfinderPulse.setValue(0);
 
-      Animated.sequence([
+      if (!reducedMotion) Animated.sequence([
         Animated.timing(viewfinderPulse, {
           toValue: 1,
           duration: 150,
@@ -135,174 +109,164 @@ export default function ScanScreen() {
         setIsReading(false);
       }, 2000);
     },
-    [viewfinderPulse, isGuideVisible, isLegalModalVisible, params.openGuide, params.openLegal],
+    [viewfinderPulse, reducedMotion, isGuideVisible, isLegalModalVisible, params.openGuide, params.openLegal],
   );
-
-  if (!permission) {
-    return <View style={styles.loading} />;
-  }
-
-  if (!permission.granted) {
-    return (
-      <View style={styles.permissionContainer}>
-        <View style={styles.permissionIcon}>
-          <Text style={styles.permissionIconText}>{'\u25a3'}</Text>
-        </View>
-        <Text style={styles.permissionTitle}>{'Kamera izni gerekli'}</Text>
-        <Text style={styles.permissionDescription}>
-          {'Ürünleri ve etiketleri taramak için kamera erişimine izin vermeniz gerekiyor.'}
-        </Text>
-        <Pressable style={styles.permissionButton} onPress={() => void Linking.openSettings()}>
-          <Text style={styles.permissionButtonText}>{'Ayarlara Git'}</Text>
-        </Pressable>
-      </View>
-    );
-  }
 
   return (
     <>
-    <SafeAreaView style={styles.screen} edges={['top']}>
-      <View style={styles.cameraStage}>
-        {scannerFocused && !isAnalysisModalVisible && <CameraView
-          style={StyleSheet.absoluteFill}
-          facing="back"
-          enableTorch={isTorchEnabled}
-          barcodeScannerSettings={barcodeScannerSettings}
-          onBarcodeScanned={handleBarcodeScanned}
-        />}
-        <View pointerEvents="none" style={styles.cameraTint} />
-        <ScrollView contentContainerStyle={styles.cameraContent} showsVerticalScrollIndicator={false}>
+      <SafeAreaView style={styles.screen} edges={['top']}>
         <View style={styles.topBar}>
+          <Pressable
+            accessibilityLabel="Menüyü aç"
+            accessibilityRole="button"
+            style={({ pressed }) => [styles.iconButton, pressed && styles.controlPressed]}
+            onPress={() => setIsDrawerVisible(true)}>
+            <Feather name="menu" size={22} color={colors.primary} />
+          </Pressable>
           <View style={styles.brandGroup}>
-            <Pressable
-              accessibilityLabel="Menüyü aç"
-              accessibilityRole="button"
-              style={({ pressed }) => [styles.iconButton, pressed && styles.iconButtonPressed]}
-              onPress={() => setIsDrawerVisible(true)}>
-              <Feather name="menu" size={21} color={colors.onPrimary} />
-            </Pressable>
-            <Image
-              source={require('../../assets/images/icon.png')}
-              style={styles.brandLogo}
-              contentFit="contain"
-            />
-            <View>
-              <Text style={styles.brandName}>Verinaliz</Text>
-              <Text style={styles.brandSubtitle}>Gıda & Kozmetik</Text>
-            </View>
+            <Image source={require('../../assets/images/icon.png')} style={styles.brandLogo} contentFit="contain" />
+            <Text accessibilityRole="header" style={styles.brandName}>Verinaliz</Text>
           </View>
-
-          <View style={styles.quickActions}>
-            <Pressable
-              accessibilityLabel="Ayarlar"
-              accessibilityRole="button"
-              style={({ pressed }) => [styles.iconButton, pressed && styles.iconButtonPressed]}
-              onPress={() => void Linking.openSettings()}>
-              <Feather name="settings" size={21} color={colors.onPrimary} />
-            </Pressable>
-            <Pressable
-              accessibilityLabel={isTorchEnabled ? 'Flaşı kapat' : 'Flaşı aç'}
-              accessibilityRole="button"
-              accessibilityState={{ selected: isTorchEnabled }}
-              style={({ pressed }) => [
-                styles.iconButton,
-                isTorchEnabled && styles.iconButtonActive,
-                pressed && styles.iconButtonPressed,
-              ]}
-              onPress={() => setIsTorchEnabled((enabled) => !enabled)}>
-              <Feather name="zap" size={21} color={colors.onPrimary} />
-            </Pressable>
-          </View>
+          <Pressable
+            accessibilityLabel="Ayarlar"
+            accessibilityRole="button"
+            style={({ pressed }) => [styles.iconButton, pressed && styles.controlPressed]}
+            onPress={() => void Linking.openSettings()}>
+            <Feather name="settings" size={21} color={colors.primary} />
+          </Pressable>
         </View>
 
-        <View style={styles.scannerArea}>
-          <Animated.View
-            pointerEvents="none"
-            style={[
-              styles.viewfinder,
-              {
-                opacity: viewfinderPulse.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [0.92, 1],
-                }),
-                transform: [
-                  {
-                    scale: viewfinderPulse.interpolate({
+        <ScrollView contentContainerStyle={styles.cameraContent}>
+          {!permission?.granted ? (
+            <View style={styles.permissionContent}>
+              <Text style={styles.permissionTitle}>Barkod taramak için kamera erişimi</Text>
+              <Text style={styles.permissionDescription}>Kamera barkodu cihazınızda okur. Ürünü bulmak için yalnızca barkod numarası sunucuya gönderilir.</Text>
+              <Pressable accessibilityRole="button" disabled={!permission} style={styles.permissionButton}
+                onPress={() => void (permission?.canAskAgain ? requestPermission() : Linking.openSettings()).catch(() =>
+                  Alert.alert('Kamera izni', 'Cihaz ayarlarından kamera erişimini kontrol edin.'))}>
+                <Text style={styles.permissionButtonText}>{permission?.canAskAgain ? 'Kameraya izin ver' : permission ? 'Ayarları aç' : 'Kamera hazırlanıyor…'}</Text>
+              </Pressable>
+            </View>
+          ) : <View style={styles.scannerArea}>
+            <View style={styles.scannerHeading}>
+              <View style={styles.scannerCopy}>
+                <Text accessibilityRole="header" style={styles.scannerTitle}>Barkod tara</Text>
+                <Text style={styles.scannerHint}>Barkodu çerçevenin içine hizalayın.</Text>
+              </View>
+              <Pressable
+                accessibilityLabel={isTorchEnabled ? 'Flaşı kapat' : 'Flaşı aç'}
+                accessibilityRole="button"
+                accessibilityState={{ selected: isTorchEnabled, disabled: !cameraReady }}
+                disabled={!cameraReady}
+                style={({ pressed }) => [
+                  styles.iconButton,
+                  isTorchEnabled && styles.iconButtonActive,
+                  !cameraReady && styles.iconButtonDisabled,
+                  pressed && styles.controlPressed,
+                ]}
+                onPress={() => setIsTorchEnabled((enabled) => !enabled)}>
+                <Feather name={isTorchEnabled ? 'zap' : 'zap-off'} size={22} color={colors.primary} />
+              </Pressable>
+            </View>
+            <View style={styles.cameraStage}>
+              {scannerFocused && !isAnalysisModalVisible && (
+                <CameraView
+                  key={cameraAttempt}
+                  style={StyleSheet.absoluteFill}
+                  facing="back"
+                  enableTorch={isTorchEnabled}
+                  barcodeScannerSettings={barcodeScannerSettings}
+                  onBarcodeScanned={handleBarcodeScanned}
+                  onCameraReady={() => {
+                    setCameraReady(true);
+                    setCameraError(false);
+                  }}
+                  onMountError={() => {
+                    setCameraReady(false);
+                    setCameraError(true);
+                  }}
+                />
+              )}
+              <View pointerEvents="none" style={styles.cameraTint} />
+              {cameraError ? (
+                <View style={styles.cameraError}>
+                  <Feather name="alert-circle" size={24} color={colors.onPrimary} />
+                  <Text accessibilityRole="alert" style={styles.cameraErrorText}>Kamera açılamadı. Diğer kamera uygulamalarını kapatıp tekrar deneyin.</Text>
+                  <Pressable
+                    accessibilityRole="button"
+                    style={({ pressed }) => [styles.cameraRetry, pressed && styles.primaryPressed]}
+                    onPress={() => {
+                      setCameraError(false);
+                      setCameraAttempt((attempt) => attempt + 1);
+                    }}>
+                    <Text style={styles.permissionButtonText}>Tekrar dene</Text>
+                  </Pressable>
+                </View>
+              ) : (
+                <Animated.View
+                  pointerEvents="none"
+                  style={[
+                    styles.viewfinder,
+                    { transform: [{ scale: viewfinderPulse.interpolate({
                       inputRange: [0, 1],
                       outputRange: [1, 1.025],
-                    }),
-                  },
-                ],
-              },
-            ]}>
-            <View style={[styles.corner, styles.topLeft]} />
-            <View style={[styles.corner, styles.topRight]} />
-            <View style={[styles.corner, styles.bottomLeft]} />
-            <View style={[styles.corner, styles.bottomRight]} />
-            <View style={styles.scanLine} />
-          </Animated.View>
-
-          <View accessibilityLiveRegion="polite" style={[styles.scanStatus, isReading && styles.scanStatusReading]}>
-            <View style={styles.statusDot} />
-            <Text style={styles.scanStatusText}>
-              {isReading ? 'OKUNUYOR...' : 'TARAMAYA HAZIR'}
-            </Text>
-          </View>
-          <Text style={styles.viewfinderHint}>Barkodu çerçevenin içine hizalayın</Text>
-        </View>
-        <View style={styles.controlPanel}>
-          <Text style={styles.panelTitle}>Ürünün içeriğini keşfedin</Text>
-          <Text style={styles.panelDescription}>Barkodu tarayın veya etiketi yapay zekâ ile inceleyin.</Text>
-          <View style={styles.modeSwitcherContainer}>
-            <View style={styles.modeActive}>
-              <FontAwesome5 name="barcode" size={16} color={colors.onPrimary} />
-              <Text style={styles.modeActiveText}>Barkod</Text>
+                    }) }] },
+                  ]}>
+                  {[styles.topLeft, styles.topRight, styles.bottomLeft, styles.bottomRight].map((position, index) => (
+                    <View key={index} style={[styles.corner, position]}>
+                      <View style={[styles.cornerHighlight, position]} />
+                    </View>
+                  ))}
+                  <View style={styles.scanLine} />
+                </Animated.View>
+              )}
             </View>
+            {!cameraError && (
+              <View accessibilityLiveRegion="polite" style={[styles.scanStatus, isReading && styles.scanStatusReading]}>
+                {isReading || !cameraReady ? <ActivityIndicator size="small" color={colors.primary} /> : <View style={styles.statusDot} />}
+                <Text style={styles.scanStatusText}>
+                  {isReading ? 'Barkod okunuyor…' : cameraReady ? 'Taramaya hazır' : 'Kamera hazırlanıyor…'}
+                </Text>
+              </View>
+            )}
+          </View>}
+
+          <View style={styles.controlPanel}>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Etiket Analizi, yapay zekâ ile etiketi incele"
-              style={({ pressed }) => [
-                styles.modeInactive,
-                pressed && styles.modePressed,
-              ]}
+              accessibilityLabel="Etiket ve öğün analizi"
+              accessibilityHint="Fotoğrafla inceleme seçeneklerini açar"
+              style={({ pressed }) => [styles.analysisButton, pressed && styles.controlPressed]}
               onPress={() => {
-                setAnalysisModalMode('label');
+                setCameraReady(false);
                 setIsAnalysisModalVisible(true);
               }}>
-              <FontAwesome5 name="camera" size={16} color={colors.primary} />
-              <Text style={styles.modeInactiveText}>Etiket Analizi</Text>
+              <View style={styles.analysisIcon}>
+                <Feather name="camera" size={22} color={colors.primary} />
+              </View>
+              <View style={styles.analysisCopy}>
+                <Text style={styles.analysisTitle}>Etiket ve öğün analizi</Text>
+                <Text style={styles.analysisSubtitle}>Fotoğrafla incele</Text>
+              </View>
+              <Feather name="chevron-right" size={20} color={colors.primary} />
             </Pressable>
+
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Barkod verileri hakkında"
+              accessibilityState={{ expanded: showBarcodeDetails }}
+              style={({ pressed }) => [styles.barcodeHint, pressed && styles.controlPressed]}
+              onPress={() => setShowBarcodeDetails((visible) => !visible)}>
+              <Feather name="info" size={17} color={colors.onSurfaceVariant} />
+              <Text style={styles.barcodeHintText}>Barkod verileri hakkında</Text>
+              <Feather name={showBarcodeDetails ? 'chevron-up' : 'chevron-down'} size={17} color={colors.onSurfaceVariant} />
+            </Pressable>
+            {showBarcodeDetails && <Text style={styles.hintDetails}>
+              Türkiye pazarındaki gıda ve kozmetik ürünlerinde açık kaynak barkod verileri eksik veya hatalı olabilir. Etiket Analizi ile ambalajı okuyabilirsiniz. Yapay zekâ da hata yapabilir; sonuçları fiziki ambalajla karşılaştırın.
+            </Text>}
           </View>
-
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Barkod verileri hakkında bilgi"
-            accessibilityState={{ expanded: showBarcodeDetails }}
-            style={({ pressed }) => [
-              styles.trBarcodeHintCard,
-              pressed && styles.modePressed,
-            ]}
-            onPress={() => setShowBarcodeDetails((visible) => !visible)}>
-            <FontAwesome5
-              name="info-circle"
-              size={16}
-              color={colors.onSurface}
-              solid
-              style={styles.trBarcodeHintIcon}
-            />
-            <Text style={styles.trBarcodeHintText}>
-              Barkod verileri eksik olabilir. <Text style={styles.trBarcodeHintBold}>{showBarcodeDetails ? 'Detayları gizle' : 'Detayları gör'}</Text>
-            </Text>
-            <FontAwesome5 name={showBarcodeDetails ? 'chevron-up' : 'chevron-down'} size={12} color={colors.secondary} />
-          </Pressable>
-          {showBarcodeDetails && <Text style={styles.hintDetails}>
-            Türkiye pazarındaki gıda ve kozmetik ürünlerinde açık kaynak barkod verileri eksik veya hatalı olabilir. Etiket Analizi ile ambalajı okuyabilirsiniz. Yapay zekâ da hata yapabilir; sonuçları fiziki ambalajla karşılaştırın.
-          </Text>}
-        </View>
         </ScrollView>
-      </View>
-
-    </SafeAreaView>
+      </SafeAreaView>
 
       <SideDrawer
         visible={isDrawerVisible}
@@ -324,7 +288,6 @@ export default function ScanScreen() {
 
       <IngredientAnalysisModal
         visible={isAnalysisModalVisible}
-        initialMode={analysisModalMode}
         onClose={() => setIsAnalysisModalVisible(false)}
         onOpenLegal={(tab) => {
           setLegalModalTab(tab || 'privacy');
@@ -335,11 +298,8 @@ export default function ScanScreen() {
       <LegalModal
         visible={isLegalModalVisible || params.openLegal === 'true'}
         initialTab={params.openLegal === 'true' ? (params.legalTab || 'privacy') : legalModalTab}
-        isFirstLaunch={isFirstLaunchLegal}
-        onAccept={handleAcceptLegal}
         onClose={() => {
           setIsLegalModalVisible(false);
-          setIsFirstLaunchLegal(false);
           router.setParams({ openLegal: undefined, legalTab: undefined });
         }}
       />
@@ -348,300 +308,80 @@ export default function ScanScreen() {
 }
 
 const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  loading: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  cameraStage: {
-    flex: 1,
-    overflow: 'hidden',
-    backgroundColor: colors.surfaceContainerLowest,
-  },
-  // Açık tema: kamera üzerine hafif siyah örtü (%18 opak) — vizörü ön plana çıkarır
-  cameraTint: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    bottom: 0,
-    left: 0,
-    backgroundColor: '#01261F55',
-  },
-  cameraContent: { flexGrow: 1 },
+  screen: { flex: 1, backgroundColor: colors.background },
+  loading: { flex: 1, gap: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background },
   topBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingTop: 14,
-    paddingBottom: 12,
-    gap: 8,
+    gap: 12,
+    paddingHorizontal: spacing.mobileMargin,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.divider,
+    backgroundColor: colors.surfaceContainerLowest,
   },
-  brandGroup: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  brandLogo: {
-    width: 28,
-    height: 28,
-    borderRadius: radius.md,
-  },
-  brandName: {
-    ...typography.bodyLg,
-    color: colors.onPrimary,
-    fontWeight: '700',
-  },
-  brandSubtitle: {
-    ...typography.labelSm,
-    color: colors.onPrimary,
-  },
-  quickActions: {
-    flexDirection: 'row',
-    gap: 7,
-  },
-  // Kamera görüntüsünden ayrılan, yüksek kontrastlı kontroller.
+  brandGroup: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  brandLogo: { width: 30, height: 30, borderRadius: radius.md },
+  brandName: { ...typography.headlineSm, flexShrink: 1, color: colors.primary },
   iconButton: {
     alignItems: 'center',
     justifyContent: 'center',
-    width: 44,
-    height: 44,
+    width: spacing.touchTarget,
+    height: spacing.touchTarget,
+    borderRadius: radius.lg,
+    backgroundColor: colors.surfaceContainerLowest,
     borderWidth: 1,
-    borderColor: '#FFFFFF33',
-    borderRadius: radius.full,
-    backgroundColor: '#01261FAA',
+    borderColor: colors.divider,
   },
-  // Aktif (flaş açık): Orman Yeşili dolu buton
-  iconButtonActive: {
-    borderColor: colors.primary,
-    backgroundColor: colors.primary,
-  },
-  iconButtonPressed: {
-    opacity: 0.7,
-  },
-  scannerArea: {
-    flex: 1,
-    minHeight: 240,
+  iconButtonActive: { backgroundColor: colors.selectedSurface, borderColor: colors.secondary },
+  iconButtonDisabled: { opacity: 0.55 },
+  controlPressed: { backgroundColor: colors.selectedSurface },
+  primaryPressed: { backgroundColor: colors.primaryContainer },
+  cameraContent: { flexGrow: 1, width: '100%', maxWidth: 560, alignSelf: 'center', padding: spacing.mobileMargin, gap: 16 },
+  scannerArea: { flexGrow: 1, gap: 12 },
+  scannerHeading: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  scannerCopy: { flex: 1, gap: 4 },
+  scannerTitle: { ...typography.headlineLgMobile, color: colors.primary },
+  scannerHint: { ...typography.bodySm, color: colors.onSurfaceVariant },
+  cameraStage: {
+    flexGrow: 1,
+    minHeight: 200,
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 24,
+    overflow: 'hidden',
+    borderRadius: radius.xxl,
+    backgroundColor: colors.cameraSurface,
   },
-  viewfinder: {
-    width: '82%',
-    maxWidth: 340,
-    aspectRatio: 1.75,
-  },
-  // Nane rengi köşeler kamera üzerinde görünür kalır.
-  corner: {
-    position: 'absolute',
-    width: 32,
-    height: 32,
-    borderColor: colors.secondaryContainer,
-    borderWidth: 2,
-  },
-  topLeft: {
-    top: 0,
-    left: 0,
-    borderRightWidth: 0,
-    borderBottomWidth: 0,
-    borderTopLeftRadius: radius.lg,
-  },
-  topRight: {
-    top: 0,
-    right: 0,
-    borderLeftWidth: 0,
-    borderBottomWidth: 0,
-    borderTopRightRadius: radius.lg,
-  },
-  bottomLeft: {
-    bottom: 0,
-    left: 0,
-    borderRightWidth: 0,
-    borderTopWidth: 0,
-    borderBottomLeftRadius: radius.lg,
-  },
-  bottomRight: {
-    right: 0,
-    bottom: 0,
-    borderLeftWidth: 0,
-    borderTopWidth: 0,
-    borderBottomRightRadius: radius.lg,
-  },
-  // İnce tarama çizgisi.
-  scanLine: {
-    position: 'absolute',
-    top: '50%',
-    right: 16,
-    left: 16,
-    height: 1,
-    backgroundColor: colors.secondaryContainer + '90',
-    shadowColor: colors.primary,
-    shadowOpacity: 0.5,
-    shadowRadius: 9,
-    shadowOffset: { width: 0, height: 0 },
-    elevation: 5,
-  },
-  // Durum rozeti — bekleme: açık nane (#c3ecd7) zemin, koyu orman yeşili metin
-  scanStatus: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 7,
-    marginTop: 20,
-    borderWidth: 1,
-    borderColor: colors.primary + '30',
-    borderRadius: radius.full,
-    paddingHorizontal: 16,
-    paddingVertical: 9,
-    backgroundColor: colors.secondaryContainer + 'E6', // #c3ecd7 %90 opak
-  },
-  // Okuma sırasında durum rozetinin kenarlığı belirginleşir.
-  scanStatusReading: {
-    borderColor: colors.primary,
-    backgroundColor: colors.secondaryContainer,
-  },
-  statusDot: {
-    width: 5,
-    height: 5,
-    borderRadius: radius.full,
-    backgroundColor: colors.primary,
-  },
-  scanStatusText: {
-    ...typography.labelMd,
-    color: colors.primary,
-  },
-  permissionContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 24,
-    backgroundColor: colors.background,
-  },
-  permissionIcon: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: 56,
-    height: 56,
-    marginBottom: 18,
-    borderRadius: radius.xl,
-    backgroundColor: colors.primary + '18',
-  },
-  permissionIconText: {
-    fontSize: 30,
-    color: colors.primary,
-  },
-  permissionTitle: {
-    ...typography.headlineMd,
-    color: colors.onSurface,
-  },
-  permissionDescription: {
-    ...typography.bodyLg,
-    maxWidth: 320,
-    marginTop: 10,
-    color: colors.onSurfaceVariant,
-    textAlign: 'center',
-  },
-  permissionButton: {
-    marginTop: 24,
-    borderRadius: radius.full,
-    paddingHorizontal: 20,
-    paddingVertical: 13,
-    backgroundColor: colors.primary,
-  },
-  permissionButtonText: {
-    ...typography.bodyMd,
-    color: colors.onPrimary,
-    fontWeight: '700',
-  },
-  modeSwitcherContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.surfaceContainer,
-    borderColor: colors.outlineVariant + '55',
-    borderWidth: 1,
-    borderRadius: 9999,
-    padding: 4,
-    gap: 4,
-    marginTop: 18,
-  },
-  modeActive: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    minHeight: 48,
-    backgroundColor: colors.primary,
-    borderRadius: 9999,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-  },
-  modeActiveText: {
-    ...typography.labelMd,
-    color: colors.onPrimary,
-    fontWeight: '600',
-  },
-  modeInactive: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    minHeight: 48,
-    backgroundColor: 'transparent',
-    borderRadius: 9999,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-  },
-  modeInactiveText: {
-    ...typography.labelMd,
-    color: colors.primary,
-    fontWeight: '500',
-  },
-  modePressed: {
-    opacity: 0.7,
-  },
-  trBarcodeHintCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginTop: 12,
-    backgroundColor: colors.surfaceContainerLow,
-    borderRadius: radius.lg,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-  },
-  trBarcodeHintIcon: {
-    marginTop: 1,
-  },
-  trBarcodeHintText: {
-    ...typography.bodySm,
-    flex: 1,
-    fontSize: 12,
-    lineHeight: 18,
-    color: colors.onSurfaceVariant,
-    textAlign: 'left',
-  },
-  trBarcodeHintBold: {
-    fontWeight: '700',
-    color: colors.onSurface,
-  },
-  viewfinderHint: { ...typography.bodySm, color: colors.onPrimary, textAlign: 'center', marginTop: 12, paddingHorizontal: 20 },
-  controlPanel: {
-    width: '100%',
-    maxWidth: 520,
-    alignSelf: 'center',
-    backgroundColor: '#FFFFFFF2',
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    borderWidth: 1,
-    borderColor: '#FFFFFF88',
-    padding: spacing.cardInternal,
-  },
-  panelTitle: { ...typography.headlineSm, color: colors.primary },
-  panelDescription: { ...typography.bodySm, color: colors.onSurfaceVariant, marginTop: 6 },
-  hintDetails: { ...typography.bodySm, color: colors.onSurfaceVariant, paddingHorizontal: 4, marginTop: 12 },
+  cameraTint: { ...StyleSheet.absoluteFill, backgroundColor: colors.cameraSurface + '3D' },
+  cameraError: { alignItems: 'center', gap: 8, marginHorizontal: 20, padding: 16, borderRadius: radius.lg, backgroundColor: colors.cameraSurface },
+  cameraErrorText: { ...typography.bodySm, textAlign: 'center', color: colors.onPrimary },
+  cameraRetry: { minHeight: spacing.touchTarget, justifyContent: 'center', borderRadius: radius.lg, borderWidth: 1, borderColor: colors.inversePrimary, paddingHorizontal: 12, paddingVertical: 8 },
+  viewfinder: { width: '78%', maxWidth: 320, aspectRatio: 2 },
+  corner: { position: 'absolute', width: 34, height: 30, borderColor: colors.cameraSurface, borderWidth: 2 },
+  cornerHighlight: { position: 'absolute', width: 30, height: 26, borderColor: colors.primaryFixed, borderWidth: 3 },
+  topLeft: { top: 0, left: 0, borderRightWidth: 0, borderBottomWidth: 0, borderTopLeftRadius: radius.lg },
+  topRight: { top: 0, right: 0, borderLeftWidth: 0, borderBottomWidth: 0, borderTopRightRadius: radius.lg },
+  bottomLeft: { bottom: 0, left: 0, borderRightWidth: 0, borderTopWidth: 0, borderBottomLeftRadius: radius.lg },
+  bottomRight: { right: 0, bottom: 0, borderLeftWidth: 0, borderTopWidth: 0, borderBottomRightRadius: radius.lg },
+  scanLine: { position: 'absolute', top: '50%', right: 12, left: 12, height: 1, backgroundColor: colors.primaryFixed + 'C0' },
+  scanStatus: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 8, paddingVertical: 4 },
+  scanStatusReading: { backgroundColor: colors.selectedSurface, paddingHorizontal: 10, borderRadius: radius.md },
+  statusDot: { width: 7, height: 7, borderRadius: radius.full, backgroundColor: colors.secondary },
+  scanStatusText: { ...typography.action, flexShrink: 1, color: colors.primary },
+  permissionContent: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', gap: 12, padding: spacing.mobileMargin },
+  permissionIcon: { alignItems: 'center', justifyContent: 'center', width: 56, height: 56, borderRadius: radius.xl, backgroundColor: colors.selectedSurface },
+  permissionTitle: { ...typography.headlineMd, color: colors.primary, textAlign: 'center' },
+  permissionDescription: { ...typography.bodyMd, maxWidth: 320, color: colors.onSurfaceVariant, textAlign: 'center' },
+  permissionButton: { marginTop: 8, minHeight: spacing.touchTarget, justifyContent: 'center', borderRadius: radius.lg, paddingHorizontal: 20, paddingVertical: 12, backgroundColor: colors.primary },
+  permissionButtonText: { ...typography.action, color: colors.onPrimary, textAlign: 'center' },
+  controlPanel: { gap: 4, borderTopWidth: 1, borderTopColor: colors.divider, paddingTop: 12 },
+  analysisButton: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: radius.xl, borderWidth: 1, borderColor: colors.outlineVariant, backgroundColor: colors.surfaceContainerLowest },
+  analysisIcon: { padding: 10, borderRadius: radius.lg, backgroundColor: colors.selectedSurface },
+  analysisCopy: { flex: 1, gap: 2 },
+  analysisTitle: { ...typography.action, color: colors.primary },
+  analysisSubtitle: { ...typography.bodySm, color: colors.onSurfaceVariant },
+  barcodeHint: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: spacing.touchTarget, paddingHorizontal: 4, paddingVertical: 8, borderRadius: radius.lg },
+  barcodeHintText: { ...typography.bodySm, flex: 1, color: colors.onSurfaceVariant },
+  hintDetails: { ...typography.bodySm, color: colors.onSurfaceVariant, paddingHorizontal: 4 },
 });

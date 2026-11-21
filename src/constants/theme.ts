@@ -4,16 +4,17 @@
  */
 
 import '@/global.css';
+import { colors } from '@/theme/theme';
 
 import { Platform } from 'react-native';
 
 export const Colors = {
   light: {
-    text: '#000000',
-    background: '#ffffff',
-    backgroundElement: '#F0F0F3',
-    backgroundSelected: '#E0E1E6',
-    textSecondary: '#60646C',
+    text: colors.onSurface,
+    background: colors.background,
+    backgroundElement: colors.surfaceContainerLow,
+    backgroundSelected: colors.selectedSurface,
+    textSecondary: colors.onSurfaceVariant,
   },
   dark: {
     text: '#ffffff',

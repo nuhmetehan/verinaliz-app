@@ -57,7 +57,6 @@ ehthumbs.db
 /.private/
 .env
 .env.*
-!.env.example
 .envrc
 .envrc.*
 
@@ -93,3 +92,6 @@ example
 # The local release configuration is used by EAS Build.
 !/app.json
 !/eas.json
+
+# Exclude hidden files and personal tool directories at every depth.
+**/.*

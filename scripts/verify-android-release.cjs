@@ -31,6 +31,7 @@ try {
   const camera = permissions.find(item => item.$['android:name'] === 'android.permission.CAMERA');
   assert.ok(camera && camera.$['tools:node'] !== 'remove', 'Kamera izni bulunmalı.');
   const blocked = [
+    'SYSTEM_ALERT_WINDOW', 'VIBRATE', 'USE_BIOMETRIC', 'USE_FINGERPRINT',
     'READ_EXTERNAL_STORAGE', 'WRITE_EXTERNAL_STORAGE', 'READ_MEDIA_IMAGES',
     'READ_MEDIA_VIDEO', 'READ_MEDIA_VISUAL_USER_SELECTED', 'RECORD_AUDIO',
   ];
@@ -42,15 +43,15 @@ try {
   const localEas = path.join(root, 'eas.json');
   const eas = require(existsSync(localEas) ? localEas : path.join(root, 'eas.example.json'));
   assert.equal(eas.build.production.android.buildType, 'app-bundle', 'Üretim biçimi AAB olmalı.');
-  const apiUrl = eas.build.production.env?.EXPO_PUBLIC_API_URL || process.env.EXPO_PUBLIC_API_URL;
-  if (apiUrl) assert.equal(new URL(apiUrl).protocol, 'https:', 'Üretim API adresi HTTPS olmalı.');
+  const releaseEnv = { ...process.env, ...eas.build.production.env };
+  require('./verify-release-env.cjs')(releaseEnv);
 
   console.log('Android yayın yapılandırması doğrulandı:');
   console.log('  Native target SDK: 36 (Android 16)');
   console.log('  Native compile SDK: 37; min SDK: 26 (Android 8)');
   console.log('  Kamera izni mevcut; galeri/depolama ve mikrofon izinleri engelli.');
   console.log('  Üretim biçimi: AAB.');
-  console.log(apiUrl ? '  API bağlantısı: HTTPS.' : '  HTTPS denetimi için üretim API adresi gerekir.');
+  console.log('  HTTPS API adresi ve yasal iletişim alanları doğrulandı.');
   console.log('Bu kontrol imzalı AAB üretmez; AAB manifesti ve 16 KB uyumluluğu derlemeden sonra doğrulanmalıdır.');
 } catch (error) {
   console.error(`Android yayın kontrolü başarısız: ${error.message}`);

@@ -1,5 +1,5 @@
 # Verinaliz Gizlilik Politikası
-**Son Güncelleme:** 20 Kasım 2026
+**Son Güncelleme:** 21 Kasım 2026
 
 Yayıncı markası: **{{PUBLISHER_NAME}}**. Uygulama: **Verinaliz**. İletişim: **{{SUPPORT_EMAIL}}**.
 
@@ -22,7 +22,7 @@ Verinaliz ("Uygulama") olarak kullanıcılarımızın gizliliğine ve kişisel v
 
 #### B. Kamera ve Barkod Taraması
 * Kameranız barkod okuma amacıyla kullanıldığında görüntü işleme doğrudan cihazınız üzerinde (on-device) yerel olarak gerçekleşir. Kamera akışı hiçbir sunucuya aktarılmaz veya kaydedilmez.
-* Okunan barkod ürün sorgulaması için Verinaliz sunucusuna, gerektiğinde Open Food Facts veya Open Beauty Facts servislerine gönderilir.
+* Okunan barkod ürün sorgulaması için Verinaliz sunucusuna, gerektiğinde Open Food Facts veya Open Beauty Facts servislerine gönderilir. Ürün görseli gösterildiğinde cihazınız görsel sağlayıcısına doğrudan bağlanır; bu sağlayıcı IP adresinizi ve istenen görseli görebilir.
 
 #### C. Eksik Ürün Bildirimleri (Topluluk Katkıları)
 * Veritabanında bulunmayan bir ürünü bildirmek için sunulan formlar **tamamen metin tabanlıdır**. Uygulama üzerinden ürün ambalajı veya herhangi bir fotoğraf toplanmaz ve depolanmaz.
@@ -45,7 +45,7 @@ Verinaliz ("Uygulama") olarak kullanıcılarımızın gizliliğine ve kişisel v
 
 #### F. Güvenlik ve İstek Sınırlama (Rate Limiting)
 * Uygulamanın güvenliğini sağlamak, sunucu kaynaklarını korumak ve kötüye kullanımı (spam/DDoS) önlemek amacıyla genel API isteklerinde geçici hız sınırlama uygulanır.
-* Hız sınırlama ve bölgesel erişim kontrolü için IP adresi geçici bellekte işlenir. Ülke, sunucudaki GeoLite2 verisiyle yaklaşık olarak belirlenir; bu sorgu için IP adresi harici bir konum servisine gönderilmez. Barındırma ve kimlik doğrulama sağlayıcıları güvenlik/işletim amaçlı IP adresi, istek zamanı, durum kodu ve oturum olayları gibi teknik kayıtlar işleyebilir. Fotoğraflar, oturum belirteçleri ve AI yanıtlarının tam metni uygulama sunucusunun hata kayıtlarına bilinçli olarak yazılmaz. Altyapı kayıtlarının saklama süresi ilgili sağlayıcı yapılandırmasına bağlıdır; kalıcı kayıt tutulmadığı garantisi verilmez.
+* Hız sınırlaması için IP adresi geçici bellekte işlenir. Barındırma ve kimlik doğrulama sağlayıcıları güvenlik/işletim amaçlı IP adresi, istek zamanı, durum kodu ve oturum olayları gibi teknik kayıtlar işleyebilir. Fotoğraflar, oturum belirteçleri ve AI yanıtlarının tam metni uygulama sunucusunun hata kayıtlarına bilinçli olarak yazılmaz. Altyapı kayıtlarının saklama süresi ilgili sağlayıcı yapılandırmasına bağlıdır; kalıcı kayıt tutulmadığı garantisi verilmez.
 
 #### G. Admin Yönetim Paneli ve Oturum Çerezi
 * Uygulama arka ucunda yalnızca **yetkili yöneticilerin** kullanabileceği bir admin paneli mevcuttur. Bu panele erişim için `HttpOnly`, `Secure` ve `SameSite=Strict` özellikli bir oturum çerezi kullanılmaktadır. Bu çerez **yalnızca yöneticileri** etkiler; son kullanıcılara hiçbir çerez yerleştirilmez.
@@ -65,6 +65,11 @@ Cloudflare’ın hizmet koşulları ve veri işleme bilgileri [Workers AI veri k
 
 ---
 
+### Verileri nasıl ve hangi hukuki sebeplerle işliyoruz?
+Hesap bilgilerini giriş sırasında sizden veya seçtiğiniz kimlik sağlayıcısından, barkod ve form içeriğini uygulamaya girdiğinizde, teknik bağlantı bilgilerini ise hizmeti kullandığınızda otomatik yollarla alırız. Kullanım koşulları kapsamında talep ettiğiniz hesabı, ürün sorgusunu, katkı ve bildirim işlevlerini sunmak için gerekli veriler KVKK m.5/2-c kapsamında işlenir. Hizmet güvenliği, hız sınırları ve kota kötüye kullanımını önleme işlemleri m.5/2-f kapsamındaki meşru menfaate dayanır. Yasal başvuruları ve mevzuatın gerektirdiği kayıtları yükümlülüklerimizi yerine getirmek için m.5/2-ç kapsamında işleriz.
+İsteğe bağlı fotoğraf analizini yalnızca seçtiğiniz fotoğraflar için gönderim onayınızı aldıktan sonra başlatırız. Bu işlem kapsamında kişisel veri işlendiği ölçüde dayanağımız açık rızanızdır (m.5/1). Göndermeden vazgeçebilir, sonraki analizleri kullanmayabilir veya verdiğiniz rızayı iletişim adresimizden geri alabilirsiniz. Bu durum barkod ve rehber kullanımını etkilemez. Fotoğrafta sağlık bilgisi veya başka kişilere ait kişisel bilgiler bulunmamalıdır.
+Cloudflare, Supabase, Railway, Expo ve seçtiğinizde Google, yukarıdaki işlevler kapsamında Türkiye dışında veri işleyebilir. Kişisel verilerin düzenli yurt dışı aktarımı KVKK m.9 kapsamındaki geçerli aktarım şartına tabidir. Alıcılar, aktarım ve uygulanan güvenceler hakkında veri sorumlusuna başvurabilirsiniz.
+
 ### 3. Veri Güvenliği
 Uygulama ile sunucular arasındaki tüm veri akışı endüstri standardı modern SSL/TLS şifreleme protokolleri ile güvence altındadır.
 
@@ -75,6 +80,8 @@ Kullanıcılar;
 * Haklarında herhangi bir kişisel veri işlenip işlenmediğini öğrenme,
 * Uygulama arayüzünden diledikleri an Google hesaplarından çıkış yapma, **"Hesabımı Sil"** seçeneğiyle hesaplarını ve hesaba bağlı sunucu kota kayıtlarını silme (yukarıda açıklanan geçici kötüye kullanım önleme özeti hariç), Geçmiş ekranından tarama/AI analiz kayıtlarını ve Favorilerim ekranından favorilerini kaldırma veya hesap silerken cihazdaki tüm kayıtları da temizlemeyi seçme (hesap silme bilgi sayfası: `/account-deletion`),
 * Uygulamaya erişemiyorlarsa sunucularımızdaki hesap/kota kayıtlarının veya bildirim/katkı kayıtlarının silinmesini **{{SUPPORT_EMAIL}}** adresine e-posta göndererek talep etme hakkına sahiptir.
+
+KVKK m.11 kapsamında ayrıca işleme amacı ve amaca uygun kullanımı öğrenebilir, yurt içindeki ve dışındaki alıcıları sorabilir, eksik veya yanlış verilerin düzeltilmesini ve yasal şartları oluştuğunda silinmesini veya yok edilmesini isteyebilirsiniz. Düzeltme ve silme işlemlerinin aktarım yapılan üçüncü kişilere bildirilmesini talep edebilir, yalnızca otomatik analiz sonucu aleyhinize bir sonuç doğmasına itiraz edebilir ve hukuka aykırı işleme nedeniyle uğradığınız zararın giderilmesini isteyebilirsiniz.
 
 **Unutulma Hakkı (Right to Erasure):** GDPR kapsamında AB'li kullanıcılar ile KVKK kapsamında Türkiye'deki kullanıcılar, işlenen verilerinin silinmesini talep edebilir. Talepler en geç **30 gün** içinde yanıtlanır.
 

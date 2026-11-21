@@ -1,4 +1,4 @@
-import { FontAwesome } from '@expo/vector-icons';
+import { Feather, FontAwesome } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -126,7 +126,7 @@ function BarcodeThumbnail({ imageUrl }: { imageUrl?: string | null }) {
 
   return (
     <View style={styles.photoCardIconPlaceholder}>
-      <Text style={styles.photoCardIcon}>📦</Text>
+      <Feather name="box" size={20} color={colors.outline} />
     </View>
   );
 }
@@ -159,6 +159,7 @@ export default function HistoryScreen() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [hasLoadError, setHasLoadError] = useState(false);
   const [drawerVisible, setDrawerVisible] = useState(false);
   const [isGuideVisible, setIsGuideVisible] = useState(false);
   const [selectedPhotoRecord, setSelectedPhotoRecord] = useState<PhotoAnalysisRecord | null>(null);
@@ -168,6 +169,7 @@ export default function HistoryScreen() {
 
   const loadHistory = useCallback(async () => {
     setIsLoading(true);
+    setHasLoadError(false);
 
     try {
       const [scans, photos] = await Promise.all([
@@ -179,6 +181,7 @@ export default function HistoryScreen() {
       setPhotoHistory(photos);
     } catch (error) {
       console.error('Tarama geçmişi yüklenemedi:', error);
+      setHasLoadError(true);
       setBarcodeHistory([]);
       setPhotoHistory([]);
     } finally {
@@ -376,9 +379,20 @@ export default function HistoryScreen() {
 
         </ScreenHeader>
         <ScrollView style={styles.body} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-          {isLoading ? <ContentSkeleton label="Geçmiş yükleniyor…" /> : combinedHistory.length === 0 ? (
+          {isLoading ? <ContentSkeleton label="Geçmiş yükleniyor…" /> : hasLoadError ? (
             <View style={styles.emptyCard}>
-              <Text style={styles.emptyTitle}>{emptyMsg.title}</Text>
+              <View style={styles.emptyIcon}><Feather name="alert-circle" size={23} color={colors.primary} /></View>
+              <Text accessibilityRole="alert" style={styles.emptyTitle}>Geçmiş yüklenemedi</Text>
+              <Pressable accessibilityRole="button"
+                style={({ pressed }) => [styles.retryButton, pressed && styles.retryPressed]}
+                onPress={() => void loadHistory()}>
+                <Text style={styles.retryText}>Tekrar dene</Text>
+              </Pressable>
+            </View>
+          ) : combinedHistory.length === 0 ? (
+            <View style={styles.emptyCard}>
+              <View style={styles.emptyIcon}><Feather name="clock" size={23} color={colors.primary} /></View>
+              <Text accessibilityRole="header" style={styles.emptyTitle}>{emptyMsg.title}</Text>
               <Text style={styles.emptyText}>{emptyMsg.text}</Text>
             </View>
           ) : (
@@ -411,10 +425,10 @@ export default function HistoryScreen() {
                           <View style={styles.photoCardContent}>
                             <BarcodeThumbnail imageUrl={barcodeItem.imageUrl} />
                             <View style={styles.photoCardDetails}>
-                              <Text style={styles.productName} numberOfLines={1}>
+                              <Text style={styles.productName} numberOfLines={2}>
                                 {barcodeItem.name ?? 'Adsız ürün'}
                               </Text>
-                              <Text style={styles.brand} numberOfLines={1}>
+                              <Text style={styles.brand} numberOfLines={2}>
                                 {barcodeItem.brand ?? 'Marka bilgisi yok'}
                               </Text>
                               <Text style={styles.timestamp}>
@@ -483,11 +497,11 @@ export default function HistoryScreen() {
                         <View style={styles.photoCardContent}>
                           <PhotoThumbnail imageUri={photoItem.imageUri} />
                           <View style={styles.photoCardDetails}>
-                            <Text style={styles.productName} numberOfLines={1}>
+                            <Text style={styles.productName} numberOfLines={2}>
                               {photoItem.title}
                             </Text>
 
-                            <Text style={styles.brand} numberOfLines={1}>
+                            <Text style={styles.brand} numberOfLines={2}>
                               {cardCategory}{detailSuffix}
                             </Text>
 
@@ -546,7 +560,7 @@ export default function HistoryScreen() {
 }
 
 const styles = StyleSheet.create({
-  actionButton: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
+  actionButton: { minWidth: spacing.touchTarget, minHeight: spacing.touchTarget, alignItems: 'center', justifyContent: 'center' },
   selectionBar: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   screen: {
     flex: 1,
@@ -559,7 +573,7 @@ const styles = StyleSheet.create({
     paddingBottom: 48,
   },
   body: { flex: 1, backgroundColor: colors.background },
-  headerAction: { minWidth: 44, minHeight: 44, paddingHorizontal: 12, borderRadius: radius.lg, backgroundColor: '#FFFFFFB3', alignItems: 'center', justifyContent: 'center' },
+  headerAction: { minWidth: spacing.touchTarget, minHeight: spacing.touchTarget, paddingHorizontal: 12, borderRadius: radius.lg, backgroundColor: colors.surfaceContainerLowest, alignItems: 'center', justifyContent: 'center' },
   headerActionDimmed: { opacity: 0.4 },
   // Filtre Çipleri
   filterRow: {
@@ -570,17 +584,17 @@ const styles = StyleSheet.create({
   },
   filterChip: {
     paddingHorizontal: 14,
-    minHeight: 44,
+    minHeight: spacing.touchTarget,
     justifyContent: 'center',
     paddingVertical: 10,
-    borderRadius: radius.full,
-    backgroundColor: '#FFFFFFB3',
+    borderRadius: radius.lg,
+    backgroundColor: colors.surfaceContainerLowest,
     borderWidth: 1,
     borderColor: colors.outlineVariant,
   },
   filterChipActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
+    backgroundColor: colors.selectedSurface,
+    borderColor: colors.secondary,
   },
   filterChipText: {
     ...typography.labelMd,
@@ -588,8 +602,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   filterChipTextActive: {
-    color: colors.onPrimary,
-    fontWeight: '700',
+    color: colors.primary,
   },
   // Tarih grubu kapsayıcı
   groupContainer: {
@@ -602,14 +615,13 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   sectionLabel: {
-    fontSize: 12,
-    fontWeight: '700',
+    ...typography.labelMd,
     color: colors.outline,
   },
   sectionLine: {
     flex: 1,
     height: 1,
-    backgroundColor: '#e1e3e4',
+    backgroundColor: colors.divider,
   },
   list: {
     gap: spacing.inlineGap,
@@ -622,16 +634,16 @@ const styles = StyleSheet.create({
     borderRadius: radius.xl, // 16px
   },
   cardPressed: {
-    opacity: 0.8,
+    backgroundColor: colors.selectedSurface,
   },
   productName: {
-    fontSize: 16,
-    fontWeight: '700',
+    ...typography.bodyMd,
+    fontFamily: typography.action.fontFamily,
     color: colors.onSurface, // #191c1d
     flex: 1,
   },
   brand: {
-    ...typography.bodyMd,
+    ...typography.bodySm,
     color: colors.onSurfaceVariant, // #414846
   },
   timestamp: {
@@ -659,11 +671,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  photoCardIcon: {
-    fontSize: 24,
-  },
   photoCardDetails: {
     flex: 1,
+    minWidth: 0,
     gap: 2,
   },
   // Boş durum kartı
@@ -671,10 +681,14 @@ const styles = StyleSheet.create({
     ...elevation.level1Card,
     gap: spacing.inlineGap,
     padding: spacing.cardInternal,
-    borderRadius: radius.xxl, // 24px
+    borderRadius: radius.xl,
   },
+  emptyIcon: { alignSelf: 'flex-start', padding: 10, backgroundColor: colors.selectedSurface, borderRadius: radius.lg },
+  retryButton: { alignSelf: 'flex-start', minHeight: spacing.touchTarget, paddingHorizontal: 16, justifyContent: 'center', borderRadius: radius.lg, backgroundColor: colors.primary },
+  retryPressed: { backgroundColor: colors.primaryContainer },
+  retryText: { ...typography.action, color: colors.onPrimary },
   emptyTitle: {
-    ...typography.headlineMd,
+    ...typography.headlineSm,
     color: colors.onSurface, // #191c1d
   },
   emptyText: {

@@ -4,6 +4,10 @@
 .claude/
 /.codex/
 /.cursor/
+/.agent/
+/.agents/
+/.gemini/
+/.impeccable/
 /.vscode/
 /.idea/
 

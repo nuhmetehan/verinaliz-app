@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios, { isAxiosError } from 'axios';
+import * as Crypto from 'expo-crypto';
 import * as Linking from 'expo-linking';
 import * as SecureStore from 'expo-secure-store';
 import * as WebBrowser from 'expo-web-browser';
@@ -153,36 +154,6 @@ export async function getValidAccessToken(): Promise<string | null> {
 }
 
 /**
- * Callback URL içindeki (#access_token=... veya ?access_token=...) parametreleri ayrıştırır.
- */
-export function extractParamsFromAuthUrl(url: string): Record<string, string> {
-  const params: Record<string, string> = {};
-
-  const hashIndex = url.indexOf('#');
-  if (hashIndex !== -1) {
-    const hashString = url.slice(hashIndex + 1);
-    const searchParams = new URLSearchParams(hashString);
-    searchParams.forEach((value, key) => {
-      params[key] = value;
-    });
-  }
-
-  const queryIndex = url.indexOf('?');
-  if (queryIndex !== -1) {
-    const end = hashIndex !== -1 && hashIndex > queryIndex ? hashIndex : url.length;
-    const queryString = url.slice(queryIndex + 1, end);
-    const searchParams = new URLSearchParams(queryString);
-    searchParams.forEach((value, key) => {
-      if (!params[key]) {
-        params[key] = value;
-      }
-    });
-  }
-
-  return params;
-}
-
-/**
  * Doğrudan token parametreleriyle kullanıcı profilini ve kotasını sunucudan çeker ve kaydeder.
  */
 export async function completeAuthWithTokens(params: {
@@ -208,12 +179,8 @@ export async function completeAuthWithTokens(params: {
     timeout: 10000,
   });
 
-  const user: AuthUser = response.data?.user ?? {
-    id: 'unknown',
-    email: null,
-    name: 'Verinaliz Kullanıcısı',
-    avatar_url: null,
-  };
+  const user: AuthUser = response.data?.user;
+  if (!user?.id) throw new Error('Giriş doğrulanamadı.');
 
   const quota: QuotaInfo = {
     total: response.data?.total ?? 3,
@@ -237,14 +204,39 @@ export async function completeAuthWithTokens(params: {
   return { session, quota };
 }
 
-/**
- * Callback URL'den gelen token bilgileriyle kullanıcı profilini ve kotasını sunucudan çeker ve kaydeder.
- */
-export async function completeAuthFromCallbackUrl(
-  url: string,
-): Promise<{ session: AuthSession; quota: QuotaInfo } | null> {
-  const params = extractParamsFromAuthUrl(url);
-  return await completeAuthWithTokens(params);
+type SignInResult = { session: AuthSession; quota: QuotaInfo };
+const PKCE_KEY = 'verinaliz.oauth.pkce';
+const LOGIN_TTL = 10 * 60 * 1000;
+let webPending: string | null = null;
+let callback: { code: string; result: Promise<SignInResult> } | null = null;
+
+async function setPending(value: string | null) {
+  if (Platform.OS === 'web') webPending = value;
+  else if (value) await SecureStore.setItemAsync(PKCE_KEY, value, secureOptions);
+  else await SecureStore.deleteItemAsync(PKCE_KEY, secureOptions);
+}
+
+async function exchangeCode(code: string): Promise<SignInResult> {
+  const raw = Platform.OS === 'web' ? webPending : await SecureStore.getItemAsync(PKCE_KEY, secureOptions);
+  const pending = raw ? JSON.parse(raw) : null;
+  if (!pending || Date.now() - pending.started > LOGIN_TTL) throw new Error('Giriş isteğinin süresi doldu.');
+  const response = await axios.post(`${API_BASE_URL}/api/auth/exchange`,
+    { code, verifier: pending.verifier }, { timeout: 15000 });
+  await setPending(null);
+  const result = await completeAuthWithTokens(response.data);
+  if (!result) throw new Error('Giriş doğrulanamadı.');
+  return result;
+}
+
+// Android may deliver the same return to both the router and the browser session.
+export function completeAuthCode(code: string): Promise<SignInResult> {
+  if (!/^[A-Za-z0-9_-]{16,256}$/.test(code)) return Promise.reject(new Error('Geçersiz giriş kodu.'));
+  if (callback?.code === code) return callback.result;
+  const result = exchangeCode(code);
+  callback = { code, result };
+  const expire = () => { if (callback?.result === result) callback = null; };
+  void result.then(() => setTimeout(expire, 5000), expire);
+  return result;
 }
 
 /** Pre-created email accounts use the same verified profile and secure session. */
@@ -271,23 +263,20 @@ export async function signInWithGoogle(): Promise<{
 } | null> {
   const redirectUri = Linking.createURL('auth-callback');
   validateAuthRedirect(redirectUri);
-  const endpoint = `${API_BASE_URL}/api/auth/google?format=json&redirect_uri=${encodeURIComponent(redirectUri)}`;
-
-  // Railway URL'sinin tarayıcıda görünmemesi için doğrudan OAuth URL'sini arka planda al
-  let authUrl = `${API_BASE_URL}/api/auth/google?redirect_uri=${encodeURIComponent(redirectUri)}`;
-  try {
-    const res = await axios.get<{ url?: string }>(endpoint, { timeout: 8000 });
-    if (res.data?.url) {
-      authUrl = res.data.url;
-    }
-  } catch {
-    // Fallback olarak doğrudan yönlendirme URL'si kullanılır
-  }
-
-  const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUri);
-
-  if (result.type === 'success' && result.url) {
-    return await completeAuthFromCallbackUrl(result.url);
+  const bytes = await Crypto.getRandomBytesAsync(32);
+  const verifier = Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
+  const digest = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, verifier,
+    { encoding: Crypto.CryptoEncoding.BASE64 });
+  const challenge = digest.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  await setPending(JSON.stringify({ verifier, started: Date.now() }));
+  const { data } = await axios.get<{ url: string }>(`${API_BASE_URL}/api/auth/google`, {
+    params: { redirect_uri: redirectUri, code_challenge: challenge }, timeout: 10000,
+  });
+  const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUri);
+  if (result.type === 'success') {
+    const code = new URL(result.url).searchParams.get('code');
+    if (!code) throw new Error('Google giriş kodu alınamadı.');
+    return completeAuthCode(code);
   }
 
   return null;

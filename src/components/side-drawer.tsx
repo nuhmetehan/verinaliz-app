@@ -1,4 +1,4 @@
-import { AntDesign, FontAwesome5, Fontisto, MaterialIcons } from '@expo/vector-icons';
+import { AntDesign, Feather, FontAwesome5, Fontisto, MaterialIcons } from '@expo/vector-icons';
 import { isAxiosError } from 'axios';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
@@ -10,11 +10,14 @@ import {
   Animated,
   Easing,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View,
   useWindowDimensions,
 } from 'react-native';
+
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { colors, radius, spacing, typography } from '@/theme/theme';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
@@ -53,7 +56,8 @@ const ANIMATION_DURATION = 280;
 
 export function SideDrawer({ visible, onClose, onOpenHowItWorks, onOpenLegal }: SideDrawerProps) {
   const { width: screenWidth } = useWindowDimensions();
-  const drawerWidth = screenWidth * DRAWER_WIDTH_RATIO;
+  const drawerWidth = Math.min(screenWidth * DRAWER_WIDTH_RATIO, 360);
+  const insets = useSafeAreaInsets();
   const reducedMotion = useReducedMotion();
   const [progress] = useState(() => new Animated.Value(0));
   const closeDuration = reducedMotion ? 0 : 200;
@@ -263,11 +267,12 @@ export function SideDrawer({ visible, onClose, onOpenHowItWorks, onOpenLegal }: 
       accessibilityElementsHidden={!visible} importantForAccessibility={visible ? 'auto' : 'no-hide-descendants'}>
       {/* Backdrop */}
       <Animated.View style={[styles.backdrop, { opacity: progress }]}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+        <Pressable accessible={false} style={StyleSheet.absoluteFill} onPress={onClose} />
       </Animated.View>
 
       {/* Drawer panel */}
       <Animated.View
+        accessibilityViewIsModal={visible}
         style={[
           styles.drawer,
           {
@@ -276,7 +281,7 @@ export function SideDrawer({ visible, onClose, onOpenHowItWorks, onOpenLegal }: 
           },
         ]}>
         {/* Header */}
-        <View style={styles.drawerHeader}>
+        <View style={[styles.drawerHeader, { paddingTop: insets.top + 12 }]}>
           <View style={styles.logoGroup}>
             <Image
               source={require('../../assets/images/icon.png')}
@@ -288,90 +293,90 @@ export function SideDrawer({ visible, onClose, onOpenHowItWorks, onOpenLegal }: 
           <Pressable
             accessibilityLabel="Menüyü kapat"
             accessibilityRole="button"
-            hitSlop={10}
             style={({ pressed }) => [styles.closeButton, pressed && styles.closeButtonPressed]}
             onPress={onClose}>
-            <Text style={styles.closeButtonText}>{'\u00d7'}</Text>
+            <Feather name="x" size={22} color={colors.primary} />
           </Pressable>
         </View>
 
         <View style={styles.divider} />
 
-        {/* Menu Items */}
-        <View style={styles.menuList}>
-          {menuSections.map((section, sectionIndex) => (
-            <Animated.View key={section.id} style={[styles.menuSection, {
-              opacity: progress.interpolate({ inputRange: [sectionIndex * 0.08, 1], outputRange: [0, 1], extrapolate: 'clamp' }),
-              transform: [{ translateX: progress.interpolate({ inputRange: [0, 1], outputRange: [-8, 0] }) }],
-            }]}>
-              {sectionIndex > 0 && <View style={styles.sectionDivider} />}
-              {section.items.map((item) => (
-                <Pressable
-                  key={item.label}
-                  style={({ pressed }) => [styles.menuItem, pressed && styles.menuItemPressed]}
-                  onPress={item.onPress}>
-                  <View style={styles.menuIconContainer}>{item.icon}</View>
-                  <Text style={styles.menuLabel}>{item.label}</Text>
-                </Pressable>
-              ))}
-            </Animated.View>
-          ))}
-        </View>
+        <ScrollView contentContainerStyle={[styles.drawerContent, { paddingBottom: Math.max(insets.bottom, 12) }]}>
+          <View style={styles.menuList}>
+            {menuSections.map((section, sectionIndex) => (
+              <Animated.View key={section.id} style={[styles.menuSection, {
+                opacity: progress.interpolate({ inputRange: [sectionIndex * 0.08, 1], outputRange: [0, 1], extrapolate: 'clamp' }),
+                transform: [{ translateX: progress.interpolate({ inputRange: [0, 1], outputRange: [-8, 0] }) }],
+              }]}>
+                {sectionIndex > 0 && <View style={styles.sectionDivider} />}
+                {section.items.map((item) => (
+                  <Pressable
+                    key={item.label}
+                    accessibilityRole="button"
+                    style={({ pressed }) => [styles.menuItem, pressed && styles.menuItemPressed]}
+                    onPress={item.onPress}>
+                    <View style={styles.menuIconContainer}>{item.icon}</View>
+                    <Text style={styles.menuLabel}>{item.label}</Text>
+                  </Pressable>
+                ))}
+              </Animated.View>
+            ))}
+          </View>
 
-        {/* Hesap / Google Giriş Bölümü */}
-        <View style={styles.accountFooter}>
-          <View style={styles.divider} />
-          {authSession ? (
-            <View style={styles.accountCard}>
-              <View style={styles.accountAvatar}>
-                <MaterialIcons name="person" size={20} color={colors.primary} />
-              </View>
-              <View style={styles.accountInfo}>
-                <Text style={styles.accountName} numberOfLines={1}>
-                  {authSession.user.name}
-                </Text>
-                {authSession.user.email && (
-                  <Text style={styles.accountEmail} numberOfLines={1}>
-                    {authSession.user.email}
+          {/* Hesap / Google Giriş Bölümü */}
+          <View style={styles.accountFooter}>
+            <View style={styles.divider} />
+            {authSession ? (
+              <View style={styles.accountCard}>
+                <View style={styles.accountAvatar}>
+                  <MaterialIcons name="person" size={20} color={colors.primary} />
+                </View>
+                <View style={styles.accountInfo}>
+                  <Text style={styles.accountName} numberOfLines={1}>
+                    {authSession.user.name}
                   </Text>
-                )}
+                  {authSession.user.email && (
+                    <Text style={styles.accountEmail} numberOfLines={1}>
+                      {authSession.user.email}
+                    </Text>
+                  )}
+                </View>
+                <Pressable
+                  accessibilityLabel="Çıkış Yap"
+                  accessibilityRole="button"
+                  style={({ pressed }) => [styles.signOutButton, pressed && styles.closeButtonPressed]}
+                  onPress={handleDrawerSignOut}>
+                  <MaterialIcons name="logout" size={18} color={colors.onSurfaceVariant} />
+                </Pressable>
               </View>
-              <Pressable
-                accessibilityLabel="Çıkış Yap"
-                accessibilityRole="button"
-                hitSlop={8}
-                style={({ pressed }) => [styles.signOutButton, pressed && styles.closeButtonPressed]}
-                onPress={handleDrawerSignOut}>
-                <MaterialIcons name="logout" size={18} color={colors.onSurfaceVariant} />
-              </Pressable>
-            </View>
-          ) : (
-            <View style={styles.signInBox}>
-              <Pressable
-                accessibilityLabel="Google ile Giriş Yap"
-                accessibilityRole="button"
-                disabled={isSigningIn}
-                style={({ pressed }) => [
-                  styles.googleSignInBtn,
-                  pressed && styles.closeButtonPressed,
-                ]}
-                onPress={() => void handleDrawerGoogleSignIn()}>
-                {isSigningIn ? (
-                  <ActivityIndicator size="small" color={colors.onPrimary} />
-                ) : (
-                  <AntDesign name="google" size={16} color={colors.onPrimary} />
-                )}
-                <Text style={styles.googleSignInBtnText}>
-                  {isSigningIn ? 'Giriş Yapılıyor...' : 'Google ile Giriş Yap'}
+            ) : (
+              <View style={styles.signInBox}>
+                <Pressable
+                  accessibilityLabel="Google ile Giriş Yap"
+                  accessibilityRole="button"
+                  disabled={isSigningIn}
+                  style={({ pressed }) => [
+                    styles.googleSignInBtn,
+                    pressed && styles.closeButtonPressed,
+                  ]}
+                  onPress={() => void handleDrawerGoogleSignIn()}>
+                  {isSigningIn ? (
+                    <ActivityIndicator size="small" color={colors.onPrimary} />
+                  ) : (
+                    <AntDesign name="google" size={16} color={colors.onPrimary} />
+                  )}
+                  <Text style={styles.googleSignInBtnText}>
+                    {isSigningIn ? 'Giriş Yapılıyor...' : 'Google ile Giriş Yap'}
+                  </Text>
+                </Pressable>
+                <EmailSignInButton disabled={isSigningIn} />
+                <Text style={styles.signInHintText}>
+                  AI analiz kotanızı hesabınızla eşleştirin
                 </Text>
-              </Pressable>
-              <EmailSignInButton disabled={isSigningIn} />
-              <Text style={styles.signInHintText}>
-                AI analiz kotanızı hesabınızla eşleştirin
-              </Text>
-            </View>
-          )}
-        </View>
+              </View>
+            )}
+          </View>
+        </ScrollView>
       </Animated.View>
     </View>
   );
@@ -405,10 +410,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: spacing.cardInternal,
-    paddingTop: 56,
-    paddingBottom: 16,
+    paddingBottom: 12,
+    gap: 8,
   },
   logoGroup: {
+    flex: 1,
+    minWidth: 0,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
@@ -420,13 +427,13 @@ const styles = StyleSheet.create({
   },
   logoText: {
     ...typography.headlineSm,
-    color: colors.onSurface,
-    fontWeight: '700',
+    flexShrink: 1,
+    color: colors.primary,
   },
   closeButton: {
-    width: 36,
-    height: 36,
-    borderRadius: radius.full,
+    width: spacing.touchTarget,
+    height: spacing.touchTarget,
+    borderRadius: radius.lg,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.surfaceContainerLow,
@@ -434,16 +441,12 @@ const styles = StyleSheet.create({
   closeButtonPressed: {
     opacity: 0.7,
   },
-  closeButtonText: {
-    fontSize: 22,
-    lineHeight: 24,
-    color: colors.onSurfaceVariant,
-  },
   divider: {
     height: 1,
     marginHorizontal: spacing.cardInternal,
-    backgroundColor: colors.outlineVariant,
+    backgroundColor: colors.divider,
   },
+  drawerContent: { flexGrow: 1 },
   menuList: {
     flex: 1,
     paddingTop: 10,
@@ -460,13 +463,14 @@ const styles = StyleSheet.create({
   menuItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 14,
-    paddingVertical: 12,
+    gap: 12,
+    minHeight: spacing.touchTarget,
+    paddingVertical: 10,
     paddingHorizontal: 12,
     borderRadius: radius.lg,
   },
   menuItemPressed: {
-    backgroundColor: colors.surfaceContainerLow,
+    backgroundColor: colors.selectedSurface,
   },
   menuIconContainer: {
     width: 28,
@@ -475,12 +479,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   menuLabel: {
-    ...typography.bodyLg,
+    ...typography.bodyMd,
+    flex: 1,
     color: colors.onSurface,
-    fontWeight: '600',
   },
   accountFooter: {
-    paddingBottom: 32,
+    paddingTop: 12,
   },
   accountCard: {
     flexDirection: 'row',
@@ -515,9 +519,9 @@ const styles = StyleSheet.create({
     fontSize: 11.5,
   },
   signOutButton: {
-    width: 34,
-    height: 34,
-    borderRadius: radius.full,
+    width: spacing.touchTarget,
+    height: spacing.touchTarget,
+    borderRadius: radius.lg,
     backgroundColor: colors.surfaceContainerLow,
     alignItems: 'center',
     justifyContent: 'center',
@@ -534,13 +538,14 @@ const styles = StyleSheet.create({
     gap: 8,
     backgroundColor: colors.primary,
     borderRadius: radius.lg,
-    paddingVertical: 11,
+    minHeight: spacing.touchTarget,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
   },
   googleSignInBtnText: {
-    ...typography.bodyMd,
+    ...typography.action,
+    flexShrink: 1,
     color: colors.onPrimary,
-    fontWeight: '700',
-    fontSize: 13.5,
   },
   signInHintText: {
     ...typography.bodySm,

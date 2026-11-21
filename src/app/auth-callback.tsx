@@ -1,20 +1,12 @@
-import * as Linking from 'expo-linking';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect } from 'react';
 import { ActivityIndicator, Alert, StyleSheet, Text, View } from 'react-native';
 
 import { colors, typography } from '@/theme/theme';
-import { completeAuthFromCallbackUrl, completeAuthWithTokens } from '@/utils/auth';
+import { completeAuthCode } from '@/utils/auth';
 
 export default function AuthCallbackScreen() {
-  const url = Linking.useURL();
-  const params = useLocalSearchParams<{
-    access_token?: string;
-    refresh_token?: string;
-    expires_at?: string;
-    expires_in?: string;
-  }>();
-  const { access_token, refresh_token, expires_at, expires_in } = params;
+  const { code } = useLocalSearchParams<{ code?: string }>();
 
   useEffect(() => {
     let active = true;
@@ -22,22 +14,11 @@ export default function AuthCallbackScreen() {
 
     async function handleCallback() {
       try {
-        let completed = null;
-        if (typeof access_token === 'string' && access_token) {
-          completed = await completeAuthWithTokens({ access_token, refresh_token, expires_at, expires_in });
-        } else {
-          const callbackUrl = url || (await Linking.getInitialURL());
-          if (callbackUrl && callbackUrl.includes('access_token')) {
-            completed = await completeAuthFromCallbackUrl(callbackUrl);
-          } else {
-            // Allow Linking.useURL to deliver the callback before leaving.
-            fallbackTimer = setTimeout(() => {
-              if (active) router.replace('/');
-            }, 1500);
-            return;
-          }
+        if (typeof code !== 'string' || !code) {
+          fallbackTimer = setTimeout(() => { if (active) router.replace('/'); }, 1500);
+          return;
         }
-        if (!completed) throw new Error('Oturum doğrulanamadı.');
+        await completeAuthCode(code);
         if (active) router.replace('/');
       } catch {
         if (active) {
@@ -52,7 +33,7 @@ export default function AuthCallbackScreen() {
       active = false;
       if (fallbackTimer) clearTimeout(fallbackTimer);
     };
-  }, [url, access_token, refresh_token, expires_at, expires_in]);
+  }, [code]);
 
   return (
     <View style={styles.container}>

@@ -1,6 +1,6 @@
-import { Entypo, MaterialIcons } from '@expo/vector-icons';
+import { Entypo, Feather, MaterialIcons } from '@expo/vector-icons';
 import axios, { isAxiosError } from 'axios';
-import { useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -15,18 +15,19 @@ import {
   Text,
   TextInput,
   View,
+  useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { SymbolView } from 'expo-symbols';
 import { AssessmentSources } from '@/components/assessment-sources';
 import { MotionReveal } from '@/components/motion-reveal';
-import { ProductLoadingSkeleton } from '@/components/content-skeleton';
+import { ContentSkeleton } from '@/components/content-skeleton';
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
+import { ScreenHeader } from '@/components/screen-header';
 import { ProductScores } from '@/components/product-scores';
 import { IngredientAnalysisModal } from '@/components/ingredient-analysis-modal';
 import { ProductSubmissionForm } from '@/components/product-submission-form';
-import { type AdditiveRisk, riskLabels } from '@/constants/riskLabels';
+import { getAdditiveRiskBadge, type AdditiveRisk, riskLabels } from '@/constants/riskLabels';
 import { colors, elevation, radius, spacing, typography } from '@/theme/theme';
 import { parseIngredientDescription } from '@/utils/ingredientFormat';
 import { isFavorite, toggleFavorite } from '@/utils/favorites';
@@ -186,10 +187,6 @@ function normalizeFlaggedIngredient(raw: RawFlaggedIngredient): FlaggedIngredien
   };
 }
 
-function getFlaggedColor(severity: FlaggedSeverity) {
-  return severity === 'high' ? colors.risk.high : colors.risk.medium;
-}
-
 function getOverallRiskLevel(additives: (Additive | string)[]): RiskLevel {
   const risks = additives
     .filter((additive): additive is Additive => typeof additive !== 'string')
@@ -199,19 +196,6 @@ function getOverallRiskLevel(additives: (Additive | string)[]): RiskLevel {
   if (risks.includes('controversial')) return 'medium';
   if (risks.includes('safe')) return 'safe';
   return null;
-}
-
-function getRiskColor(risk: AdditiveRisk | null) {
-  switch (risk) {
-    case 'dangerous':
-      return colors.risk.high;
-    case 'controversial':
-      return colors.risk.medium;
-    case 'safe':
-      return colors.risk.safe;
-    default:
-      return null;
-  }
 }
 
 function getReportErrorMessage(error: unknown) {
@@ -226,6 +210,7 @@ export default function ProductDetailScreen() {
   const params = useLocalSearchParams<{ barcode?: string | string[] }>();
   const barcode = Array.isArray(params.barcode) ? params.barcode[0] : params.barcode;
   const [product, setProduct] = useState<Product | null>(null);
+  const [retryKey, setRetryKey] = useState(0);
   const [isLoading, setIsLoading] = useState(Boolean(barcode));
   const [isNotFound, setIsNotFound] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(barcode ? null : 'Geçersiz barkod');
@@ -238,6 +223,8 @@ export default function ProductDetailScreen() {
   const [isAnalysisModalVisible, setIsAnalysisModalVisible] = useState(false);
   const [imageError, setImageError] = useState(false);
 
+  const { width, fontScale } = useWindowDimensions();
+  const useSingleColumn = width < 350 || fontScale >= 1.5;
   const reducedMotion = useReducedMotion();
   const [favoriteScale] = useState(() => new Animated.Value(1));
   const favoritePending = useRef(false);
@@ -389,7 +376,7 @@ export default function ProductDetailScreen() {
           setIsNotFound(true);
         } else {
           console.error('Ürün bilgisi alınamadı:', error);
-          setErrorMessage('Ürün bilgisi alınamadı. Lütfen tekrar deneyin.');
+          setErrorMessage('Bağlantınızı kontrol edip tekrar deneyin.');
         }
       } finally {
         if (!controller.signal.aborted) {
@@ -401,23 +388,36 @@ export default function ProductDetailScreen() {
     void loadProduct();
 
     return () => controller.abort();
-  }, [barcode, isBarcodeValid]);
+  }, [barcode, isBarcodeValid, retryKey]);
 
 
-  if (isLoading) {
-    return <ProductLoadingSkeleton />;
+  const goBack = () => router.canGoBack() ? router.back() : router.replace('/(tabs)');
+  const pageHeader = <ScreenHeader title="Ürün detayı" navigation="back" onNavigate={goBack} />;
+
+  if (isLoading && isBarcodeValid) {
+    return (
+      <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
+        {pageHeader}
+        <ScrollView style={styles.body} contentContainerStyle={styles.content}>
+          <ContentSkeleton product label="Ürün bilgileri yükleniyor…" />
+        </ScrollView>
+      </SafeAreaView>
+    );
   }
 
   if (isNotFound) {
     return (
-      <SafeAreaView style={styles.screen} edges={['top']}>
-        <View style={styles.stateScreen}>
+      <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
+        {pageHeader}
+        <ScrollView style={styles.body} contentContainerStyle={styles.stateScreen}>
           <View style={styles.stateCard}>
-            <Text style={styles.stateTitle}>{'Barkod Kaydı Bulunamadı'}</Text>
+            <View style={styles.stateIcon}><Feather name="search" size={24} color={colors.primary} /></View>
+            <Text accessibilityRole="header" style={styles.stateTitle}>Barkod kaydı bulunamadı</Text>
             <Text style={styles.stateDescription}>
               {'Open Food Facts / Open Beauty Facts veritabanları Türkiye pazarındaki gıda ve kozmetik ürünleri için sıklıkla eksik veya güncel değildir. Etiketi AI Analizi ile okuyabilirsiniz; sonuçları fiziki ambalajla karşılaştırın.'}
             </Text>
             <Pressable
+              accessibilityRole="button"
               style={({ pressed }) => [
                 styles.analyzeIngredientsButton,
                 pressed && styles.buttonPressed,
@@ -425,10 +425,11 @@ export default function ProductDetailScreen() {
               onPress={() => setIsAnalysisModalVisible(true)}>
               <MaterialIcons name="auto-awesome" size={18} color={colors.onPrimary} />
               <Text style={styles.analyzeIngredientsButtonText}>
-                {'AI ile Etiketi Analiz Et (Önerilen)'}
+                Etiketi analiz et
               </Text>
             </Pressable>
             <Pressable
+              accessibilityRole="button"
               style={({ pressed }) => [
                 styles.contributionButton,
                 pressed && styles.buttonPressed,
@@ -437,7 +438,7 @@ export default function ProductDetailScreen() {
               <Text style={styles.contributionButtonText}>{'Eksik Ürünü Bildir'}</Text>
             </Pressable>
           </View>
-        </View>
+        </ScrollView>
 
         <ProductSubmissionForm
           barcode={barcode ?? ''}
@@ -455,11 +456,28 @@ export default function ProductDetailScreen() {
 
   if (errorMessage || !product || !isBarcodeValid) {
     return (
-      <View style={styles.stateScreen}>
-        <Text style={styles.stateTitle}>
-          {!isBarcodeValid ? 'Geçersiz barkod formatı.' : (errorMessage ?? 'Ürün bilgisi alınamadı')}
-        </Text>
-      </View>
+      <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
+        {pageHeader}
+        <ScrollView style={styles.body} contentContainerStyle={styles.stateScreen}>
+          <View style={styles.stateCard}>
+            <View style={styles.stateIcon}><Feather name="alert-circle" size={24} color={colors.primary} /></View>
+            <Text accessibilityRole="header" style={styles.stateTitle}>
+              {!barcode || !isBarcodeValid ? 'Geçersiz barkod' : 'Ürün bilgisi alınamadı'}
+            </Text>
+            <Text accessibilityRole="alert" style={styles.stateDescription}>
+              {!barcode || !isBarcodeValid ? 'Ürünün barkodunu yeniden tarayın.' : (errorMessage ?? 'Lütfen tekrar deneyin.')}
+            </Text>
+            {barcode && isBarcodeValid && (
+              <Pressable
+                accessibilityRole="button"
+                style={({ pressed }) => [styles.analyzeIngredientsButton, pressed && styles.buttonPressed]}
+                onPress={() => setRetryKey((value) => value + 1)}>
+                <Text style={styles.analyzeIngredientsButtonText}>Tekrar dene</Text>
+              </Pressable>
+            )}
+          </View>
+        </ScrollView>
+      </SafeAreaView>
     );
   }
 
@@ -471,272 +489,264 @@ export default function ProductDetailScreen() {
   const ingredientsText = product.ingredients_text?.trim();
 
   return (
-    <SafeAreaView style={styles.screen} edges={['top']}>
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <MotionReveal key={product.barcode} style={styles.header}>
-          <View style={styles.headerRow}>
-            {product.image_url && !imageError ? (
-              <Image
-                source={{ uri: product.image_url }}
-                style={styles.productImage}
-                resizeMode="contain"
-                onError={() => setImageError(true)}
-              />
-            ) : (
-              <View style={styles.productImageFallback}>
-                <SymbolView
-                  name={{
-                    ios: 'cube.box',
-                    android: 'inventory_2',
-                    web: 'inventory_2',
-                  }}
-                  type="monochrome"
-                  size={28}
-                  tintColor={colors.outline}
-                  fallback={<Text style={styles.productImageFallbackIcon}>📦</Text>}
-                />
-              </View>
-            )}
-            <Pressable
-              accessibilityLabel={isFav ? 'Favorilerden çıkar' : 'Favorilere ekle'}
-              accessibilityRole="button"
-              accessibilityState={{ selected: isFav }}
-              hitSlop={8}
-              onPress={() => void handleToggleFavorite()}
-              style={({ pressed }) => [
-                styles.favoriteButton,
-                isFav && styles.favoriteButtonActive,
-                pressed && styles.buttonPressed,
-              ]}>
-              <Animated.View style={{ transform: [{ scale: favoriteScale }] }}>
-              <SymbolView
-                name={{
-                  ios: isFav ? 'heart.fill' : 'heart',
-                  android: isFav ? 'favorite' : 'favorite_border',
-                  web: isFav ? 'favorite' : 'favorite_border',
-                }}
-                type="monochrome"
+    <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
+      <ScreenHeader
+        title="Ürün detayı"
+        navigation="back"
+        onNavigate={goBack}
+        action={
+          <Pressable
+            accessibilityLabel={isFav ? 'Favorilerden çıkar' : 'Favorilere ekle'}
+            accessibilityRole="button"
+            accessibilityState={{ selected: isFav }}
+            onPress={() => void handleToggleFavorite()}
+            style={({ pressed }) => [
+              styles.favoriteButton,
+              isFav && styles.favoriteButtonActive,
+              pressed && styles.buttonPressed,
+            ]}>
+            <Animated.View style={{ transform: [{ scale: favoriteScale }] }}>
+              <MaterialIcons
+                name={isFav ? 'favorite' : 'favorite-border'}
                 size={22}
-                tintColor={isFav ? '#e53935' : colors.outline}
+                color={isFav ? colors.primary : colors.outline}
+                allowFontScaling={false}
               />
-              </Animated.View>
-            </Pressable>
-          </View>
+            </Animated.View>
+          </Pressable>
+        }
+      />
+      <ScrollView style={styles.body} contentContainerStyle={styles.content}>
+        <MotionReveal key={product.barcode} style={[styles.header, useSingleColumn && styles.headerStacked]}>
+          {product.image_url && !imageError ? (
+            <Image
+              source={{ uri: product.image_url }}
+              style={styles.productImage}
+              resizeMode="contain"
+              onError={() => setImageError(true)}
+            />
+          ) : (
+            <View style={styles.productImageFallback}>
+              <Feather name="box" size={25} color={colors.outline} allowFontScaling={false} />
+            </View>
+          )}
           <View style={styles.headerInfo}>
             <View style={styles.productBadges}>
-              <Text style={styles.categoryBadge}>{isCosmetic ? 'KOZMETİK' : 'GIDA'}</Text>
+              <Text style={styles.categoryBadge}>{isCosmetic ? 'Kozmetik' : 'Gıda'}</Text>
               {product.data_source && <Text style={styles.sourceBadge}>
                 {product.data_source === 'openfoodfacts' ? 'Open Food Facts' : 'Open Beauty Facts'}
               </Text>}
             </View>
-            <Text style={styles.productName}>{product.name ?? 'Adsız ürün'}</Text>
+            <Text accessibilityRole="header" style={styles.productName}>{product.name ?? 'Adsız ürün'}</Text>
             <Text style={styles.brand}>{product.brand ?? 'Marka bilgisi yok'}</Text>
             <Text selectable style={styles.barcodeLabel}>Barkod · {product.barcode}</Text>
           </View>
         </MotionReveal>
 
         <MotionReveal key={`${product.barcode}-sections`} delay={80} style={styles.resultSections}>
-        {/* Bilgilendirme Kartı */}
-        <View style={styles.disclaimerBox}>
-          <Entypo name="warning" size={18} color={colors.onSurface} style={styles.disclaimerIcon} />
-          <Text style={styles.disclaimerText}>
-            Barkod aramalarında veritabanı kaynaklı eksik veya yanlış bilgiler gelebilir. Etiketi AI Analiz ile okuyabilirsiniz; AI da hata yapabilir, fiziki ambalajı kontrol edin.
-          </Text>
-        </View>
-
-        {!isCosmetic && product.data_source === 'openfoodfacts' && (
-          <ProductScores grade={product.nutriscore_grade} nova={product.nova_group} />
-        )}
-
-        {!isCosmetic && (
-          <View style={styles.section}>
-            <View style={styles.nutritionHeading}>
-              <Text style={styles.sectionTitle}>{'Besin Değerleri'}</Text>
-              <Text style={styles.nutritionUnitLabel}>{"(100g'da)"}</Text>
+          <View style={[styles.section, styles.allergenCard, product.allergens.length > 0 && styles.allergenCardWarning]}>
+            <View style={styles.allergenHeading}>
+              <Feather name={product.allergens.length > 0 ? 'alert-triangle' : 'info'} size={19} color={product.allergens.length > 0 ? colors.risk.high : colors.primary} />
+              <Text accessibilityRole="header" style={styles.sectionTitle}>Alerjenler</Text>
             </View>
-            <View style={styles.nutritionGrid}>
-              {nutritionItems.map(({ key, label, unit }) => (
-                <View key={key} style={styles.nutritionCard}>
-                  <Text style={styles.nutritionLabel}>{label}</Text>
-                  <Text style={styles.nutritionValue}>
-                    {displayValue(product.nutrition[key], unit)}
-                  </Text>
-                </View>
-              ))}
-            </View>
-          </View>
-        )}
-
-        <View style={styles.section}>
-          <View style={styles.sectionHeadingRow}>
-            <Text style={styles.sectionTitle}>
-              {isCosmetic ? 'Dikkat Çeken Kozmetik Bileşenler' : 'Dikkat Çeken İçerikler'}
-            </Text>
-            {flaggedIngredients.length > 0 ? (
-              <Text style={styles.countChip}>{flaggedIngredients.length}</Text>
-            ) : null}
-          </View>
-
-          {flaggedIngredients.length > 0 ? (
-            <View style={styles.flaggedList}>
-              {flaggedIngredients.map((item) => {
-                const accent = getFlaggedColor(item.severity);
-                const { category: role, description: cleanDesc } = parseIngredientDescription(
-                  item.description,
-                  item.category,
-                );
-
-                return (
-                  <View
-                    key={item.name}
-                    style={[styles.flaggedCard, { borderLeftColor: accent }]}>
-                    <View
-                      style={[
-                        styles.flaggedChip,
-                        { borderColor: accent, backgroundColor: `${accent}1F` },
-                      ]}>
-                      <Text style={[styles.flaggedChipText, { color: accent }]}>{item.name}</Text>
-                    </View>
-                    {role ? (
-                      <View style={styles.flaggedRoleBadge}>
-                        <Text style={styles.flaggedRoleLabel}>İşlev: </Text>
-                        <Text style={styles.flaggedRoleValue}>{role}</Text>
-                      </View>
-                    ) : null}
-                    {cleanDesc ? (
-                      <Text style={styles.flaggedDescription}>{cleanDesc}</Text>
-                    ) : null}
+            {product.allergens.length > 0 ? (
+              <View style={styles.allergenList}>
+                {product.allergens.map((allergen) => (
+                  <View key={allergen} style={styles.allergenChip}>
+                    <Text style={styles.allergenChipText}>{allergen}</Text>
                   </View>
-                );
-              })}
-            </View>
-          ) : (
-            <View style={styles.emptyCard}>
-              <Text style={styles.emptyText}>
-                {isCosmetic
-                  ? 'Barkod kaydında dikkat çeken kozmetik bileşen tespit edilmedi (İçindekiler metni eksik olabilir; AI analizi önerilir)'
-                  : 'Barkod kaydında dikkat edilmesi gereken içerik tespit edilmedi (Veri eksikliğine karşı AI analizi önerilir)'}
-              </Text>
-            </View>
-          )}
-        </View>
-
-        <View style={styles.section}>
-          <View style={styles.sectionHeadingRow}>
-            <Text style={styles.sectionTitle}>
-              {isCosmetic ? 'Kozmetik Bileşen & Katkı Kayıtları' : 'Katkı Maddeleri'}
-            </Text>
-            <Text style={styles.countChip}>{product.additives.length}</Text>
-          </View>
-
-          {product.additives.length > 0 ? (
-            <View style={styles.additivesList}>
-              {product.additives.map((rawAdditive) => {
-                const additive = normalizeAdditive(rawAdditive);
-                const riskColor = getRiskColor(additive.risk);
-
-                return (
-                  <View
-                    key={additive.code}
-                    style={[styles.additiveCard, { borderLeftColor: riskColor ?? colors.outlineVariant }]}>
-                    <View style={styles.additiveTopRow}>
-                      <Text style={styles.codeChip}>{additive.code}</Text>
-                      {riskColor && additive.risk ? (
-                        <View
-                          style={[
-                            styles.riskBadge,
-                            { borderColor: riskColor, backgroundColor: `${riskColor}1F` },
-                          ]}>
-                          <Text style={[styles.riskBadgeText, { color: riskColor }]}>
-                            {riskLabels[additive.risk]}
-                          </Text>
-                        </View>
-                      ) : null}
-                    </View>
-                    <Text style={styles.additiveName}>{additive.name ?? additive.code}</Text>
-                    <Text style={styles.additiveCategory}>
-                      {additive.category ?? 'Kategori bilgisi yok'}
-                    </Text>
-                    {additive.description ? (
-                      <Text style={styles.additiveDescription}>{additive.description}</Text>
-                    ) : null}
-                  </View>
-                );
-              })}
-            </View>
-          ) : (
-            <View style={styles.emptyCard}>
-              <Text style={styles.emptyText}>
-                {isCosmetic ? 'Kayıtlı kozmetik katkı/bileşen bilgisi yok' : 'Katkı maddesi bilgisi yok'}
-              </Text>
-            </View>
-          )}
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>
-            {'İçindekiler'}
-          </Text>
-          <View style={styles.ingredientsCard}>
-            {ingredientsText ? (
-              <Text style={styles.ingredientsText}>{ingredientsText}</Text>
+                ))}
+              </View>
             ) : (
               <Text style={styles.emptyText}>
-                {'Veritabanında içindekiler metni bulunmuyor. Ürünün etiketini AI Analizi ile fotoğraflayarak tüm bileşenleri inceleyebilirsiniz.'}
+                {'Veritabanında alerjen kaydı bulunmuyor — bu ürünün alerjen içermediği anlamına gelmez. Fiziki ambalajı mutlaka kontrol edin veya AI Etiket Analizi kullanın.'}
               </Text>
             )}
           </View>
-        </View>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Alerjenler</Text>
-          {product.allergens.length > 0 ? (
-            <View style={styles.allergenList}>
-              {product.allergens.map((allergen) => (
-                <View key={allergen} style={styles.allergenChip}>
-                  <Text style={styles.allergenChipText}>{allergen}</Text>
-                </View>
-              ))}
-            </View>
-          ) : (
-            <Text style={styles.emptyText}>
-              {'Veritabanında alerjen kaydı bulunmuyor — bu ürünün alerjen içermediği anlamına gelmez. Fiziki ambalajı mutlaka kontrol edin veya AI Etiket Analizi kullanın.'}
-            </Text>
+          {!isCosmetic && product.data_source === 'openfoodfacts' && (
+            <ProductScores grade={product.nutriscore_grade} nova={product.nova_group} />
           )}
-        </View>
 
-        <View style={styles.disclaimerBox}>
-          <Entypo name="warning" size={18} color={colors.onSurface} style={styles.disclaimerIcon} />
-          <Text style={styles.disclaimerText}>
-            {'Bilgilendirme: Üreticiler ürün içerik ve formülasyonlarını dönemsel olarak değiştirebilir. Açık kaynaklı veritabanındaki olası gecikmeler ve Türkiye pazarındaki veri eksiklikleri sebebiyle her zaman fiziki ürünün üzerindeki son etiket bilgisi esastır.'}
-          </Text>
-        </View>
+          <View style={styles.section}>
+            <View style={styles.sectionHeadingRow}>
+              <Text accessibilityRole="header" style={styles.sectionTitle}>
+                {isCosmetic ? 'Dikkat Çeken Kozmetik Bileşenler' : 'Dikkat Çeken İçerikler'}
+              </Text>
+              {flaggedIngredients.length > 0 ? (
+                <Text style={styles.countChip}>{flaggedIngredients.length}</Text>
+              ) : null}
+            </View>
 
-        <AssessmentSources />
+            {flaggedIngredients.length > 0 ? (
+              <View style={styles.flaggedList}>
+                {flaggedIngredients.map((item) => {
+                  const { category: role, description: cleanDesc } = parseIngredientDescription(
+                    item.description,
+                    item.category,
+                  );
 
-        <View style={styles.attributionBox}>
-          <Text style={styles.attributionText}>
-            {'Ürün verileri '}
-            <Text accessibilityRole="link" style={styles.attributionLink} onPress={() => {
-              const host = product.data_source === 'openbeautyfacts' ? 'world.openbeautyfacts.org' : 'world.openfoodfacts.org';
-              void Linking.openURL(`https://${host}/product/${encodeURIComponent(product.barcode)}`).catch(() => Alert.alert('Bağlantı açılamadı'));
-            }}>
-              {product.data_source === 'openbeautyfacts' ? 'Open Beauty Facts' : 'Open Food Facts'}
+                  return (
+                    <View
+                      key={item.name}
+                      style={styles.flaggedCard}>
+                      <Text style={styles.flaggedChipText}>{item.name}</Text>
+                      {item.severity && (
+                        <View style={[styles.riskBadge, { backgroundColor: colors.riskSurface[item.severity] }]}>
+                          <Text style={[styles.riskBadgeText, { color: colors.risk[item.severity] }]}>
+                            {item.severity === 'high' ? riskLabels.dangerous : riskLabels.controversial}
+                          </Text>
+                        </View>
+                      )}
+                      {role ? (
+                        <View style={styles.flaggedRoleBadge}>
+                          <Text style={styles.flaggedRoleLabel}>İşlev: </Text>
+                          <Text style={styles.flaggedRoleValue}>{role}</Text>
+                        </View>
+                      ) : null}
+                      {cleanDesc ? (
+                        <Text style={styles.flaggedDescription}>{cleanDesc}</Text>
+                      ) : null}
+                    </View>
+                  );
+                })}
+              </View>
+            ) : (
+              <View style={styles.emptyCard}>
+                <Text style={styles.emptyText}>
+                  {isCosmetic
+                    ? 'Barkod kaydında dikkat çeken kozmetik bileşen tespit edilmedi (İçindekiler metni eksik olabilir; AI analizi önerilir)'
+                    : 'Barkod kaydında dikkat edilmesi gereken içerik tespit edilmedi (Veri eksikliğine karşı AI analizi önerilir)'}
+                </Text>
+              </View>
+            )}
+          </View>
+
+          <View style={styles.section}>
+            <Text accessibilityRole="header" style={styles.sectionTitle}>
+              {'İçindekiler'}
             </Text>
-            {' açık veritabanından alınmaktadır (Open Database License — ODbL).'}
-          </Text>
-          <Text accessibilityRole="link" style={styles.attributionLink} onPress={() => {
-            void Linking.openURL('https://opendatacommons.org/licenses/odbl/1-0/').catch(() => Alert.alert('Bağlantı açılamadı'));
-          }}>ODbL 1.0 lisansı ve yeniden kullanım koşulları ↗</Text>
-        </View>
+            <View style={styles.ingredientsCard}>
+              {ingredientsText ? (
+                <Text style={styles.ingredientsText}>{ingredientsText}</Text>
+              ) : (
+                <Text style={styles.emptyText}>
+                  {'Veritabanında içindekiler metni bulunmuyor. Ürünün etiketini AI Analizi ile fotoğraflayarak tüm bileşenleri inceleyebilirsiniz.'}
+                </Text>
+              )}
+            </View>
+          </View>
 
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Bu ürün bilgisini hatalı olarak bildir"
-          style={styles.reportButton}
-          onPress={() => setIsReportModalVisible(true)}>
-          <Text style={styles.reportButtonText}>{'Bu bilgi yanlış mı?'}</Text>
-        </Pressable>
+          {!isCosmetic && (
+            <View style={styles.section}>
+              <View style={styles.nutritionHeading}>
+                <Text accessibilityRole="header" style={styles.sectionTitle}>{'Besin Değerleri'}</Text>
+                <Text style={styles.nutritionUnitLabel}>{"(100g'da)"}</Text>
+              </View>
+              <View style={styles.nutritionGrid}>
+                {nutritionItems.map(({ key, label, unit }) => (
+                  <View key={key} style={[styles.nutritionCard, useSingleColumn && styles.nutritionCardFull]}>
+                    <Text style={styles.nutritionLabel}>{label}</Text>
+                    <Text style={styles.nutritionValue}>
+                      {displayValue(product.nutrition[key], unit)}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
+
+          <View style={styles.section}>
+            <View style={styles.sectionHeadingRow}>
+              <Text accessibilityRole="header" style={styles.sectionTitle}>
+                {isCosmetic ? 'Kozmetik Bileşen & Katkı Kayıtları' : 'Katkı Maddeleri'}
+              </Text>
+              <Text style={styles.countChip}>{product.additives.length}</Text>
+            </View>
+
+            {product.additives.length > 0 ? (
+              <View style={styles.additivesList}>
+                {product.additives.map((rawAdditive) => {
+                  const additive = normalizeAdditive(rawAdditive);
+                  const riskBadge = getAdditiveRiskBadge(additive.risk);
+
+                  return (
+                    <View
+                      key={additive.code}
+                      style={styles.additiveCard}>
+                      <View style={styles.additiveTopRow}>
+                        <Text style={styles.codeChip}>{additive.code}</Text>
+                        {riskBadge ? (
+                          <View
+                            style={[
+                              styles.riskBadge,
+                              { backgroundColor: riskBadge.bg },
+                            ]}>
+                            <Text style={[styles.riskBadgeText, { color: riskBadge.color }]}>
+                              {riskBadge.label}
+                            </Text>
+                          </View>
+                        ) : null}
+                      </View>
+                      <Text style={styles.additiveName}>{additive.name ?? additive.code}</Text>
+                      <Text style={styles.additiveCategory}>
+                        {additive.category ?? 'Kategori bilgisi yok'}
+                      </Text>
+                      {additive.description ? (
+                        <Text style={styles.additiveDescription}>{additive.description}</Text>
+                      ) : null}
+                    </View>
+                  );
+                })}
+              </View>
+            ) : (
+              <View style={styles.emptyCard}>
+                <Text style={styles.emptyText}>
+                  {isCosmetic ? 'Kayıtlı kozmetik katkı/bileşen bilgisi yok' : 'Katkı maddesi bilgisi yok'}
+                </Text>
+              </View>
+            )}
+          </View>
+
+          <View style={styles.disclaimerBox}>
+            <Entypo name="warning" size={18} color={colors.onSurface} style={styles.disclaimerIcon} />
+            <Text style={styles.disclaimerText}>
+              Barkod aramalarında veritabanı kaynaklı eksik veya yanlış bilgiler gelebilir. Etiketi AI Analiz ile okuyabilirsiniz; AI da hata yapabilir, fiziki ambalajı kontrol edin.
+            </Text>
+          </View>
+
+          <View style={styles.disclaimerBox}>
+            <Entypo name="warning" size={18} color={colors.onSurface} style={styles.disclaimerIcon} />
+            <Text style={styles.disclaimerText}>
+              {'Bilgilendirme: Üreticiler ürün içerik ve formülasyonlarını dönemsel olarak değiştirebilir. Açık kaynaklı veritabanındaki olası gecikmeler ve Türkiye pazarındaki veri eksiklikleri sebebiyle her zaman fiziki ürünün üzerindeki son etiket bilgisi esastır.'}
+            </Text>
+          </View>
+
+          <AssessmentSources />
+
+          <View style={styles.attributionBox}>
+            <Text style={styles.attributionText}>
+              {'Ürün verileri '}
+              <Text accessibilityRole="link" style={styles.attributionLink} onPress={() => {
+                const host = product.data_source === 'openbeautyfacts' ? 'world.openbeautyfacts.org' : 'world.openfoodfacts.org';
+                void Linking.openURL(`https://${host}/product/${encodeURIComponent(product.barcode)}`).catch(() => Alert.alert('Bağlantı açılamadı'));
+              }}>
+                {product.data_source === 'openbeautyfacts' ? 'Open Beauty Facts' : 'Open Food Facts'}
+              </Text>
+              {' açık veritabanından alınmaktadır (Open Database License — ODbL).'}
+            </Text>
+            <Text accessibilityRole="link" style={styles.attributionLink} onPress={() => {
+              void Linking.openURL('https://opendatacommons.org/licenses/odbl/1-0/').catch(() => Alert.alert('Bağlantı açılamadı'));
+            }}>ODbL 1.0 lisansı ve yeniden kullanım koşulları ↗</Text>
+          </View>
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Bu ürün bilgisini hatalı olarak bildir"
+            style={styles.reportButton}
+            onPress={() => setIsReportModalVisible(true)}>
+            <Text style={styles.reportButtonText}>{'Bu bilgi yanlış mı?'}</Text>
+          </Pressable>
         </MotionReveal>
       </ScrollView>
 
@@ -827,10 +837,11 @@ export default function ProductDetailScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: colors.background, // #f8f9fa
+    backgroundColor: colors.headerSurface,
   },
+  body: { flex: 1, backgroundColor: colors.background },
   stateScreen: {
-    flex: 1,
+    flexGrow: 1,
     alignItems: 'center',
     justifyContent: 'center',
     gap: spacing.inlineGap,
@@ -840,24 +851,21 @@ const styles = StyleSheet.create({
   stateCard: {
     ...elevation.level1Card,
     width: '100%',
-    maxWidth: 340,
+    maxWidth: 420,
     alignItems: 'center',
     gap: spacing.stackGap,
     padding: spacing.cardInternal,
-    borderRadius: radius.xxl, // 24px
+    borderRadius: radius.xl,
   },
+  stateIcon: { padding: 14, borderRadius: radius.xl, backgroundColor: colors.selectedSurface },
   stateTitle: {
     ...typography.headlineMd,
-    color: colors.onSurface, // #191c1d
-    textAlign: 'center',
-  },
-  stateText: {
-    ...typography.bodyLg,
     color: colors.onSurface,
+    textAlign: 'center',
   },
   stateDescription: {
     ...typography.bodyMd,
-    color: colors.onSurfaceVariant, // #414846
+    color: colors.onSurfaceVariant,
     textAlign: 'center',
   },
   analyzeIngredientsButton: {
@@ -866,28 +874,22 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
     width: '100%',
-    borderRadius: radius.full,
+    minHeight: spacing.touchTarget,
+    borderRadius: radius.lg,
     paddingHorizontal: 18,
     paddingVertical: 12,
-    backgroundColor: colors.primary, // #01261f
-    elevation: 2,
-    shadowColor: '#000000',
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-  },
-  analyzeIngredientsButtonIcon: {
-    fontSize: 16,
+    backgroundColor: colors.primary,
   },
   analyzeIngredientsButtonText: {
-    ...typography.bodyMd,
-    color: colors.onPrimary, // #ffffff
-    fontWeight: '700',
+    ...typography.action,
+    flexShrink: 1,
+    color: colors.onPrimary,
     textAlign: 'center',
   },
   contributionButton: {
     width: '100%',
-    borderRadius: radius.full,
+    minHeight: spacing.touchTarget,
+    borderRadius: radius.lg,
     paddingHorizontal: 18,
     paddingVertical: 12,
     backgroundColor: colors.surfaceContainerLowest,
@@ -897,15 +899,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   contributionButtonText: {
-    ...typography.bodyMd,
-    color: colors.onSurface,
-    fontWeight: '600',
+    ...typography.action,
+    color: colors.primary,
     textAlign: 'center',
   },
   buttonDisabled: {
     opacity: 0.6,
   },
   content: {
+    alignSelf: 'center',
+    width: '100%',
+    maxWidth: 680,
     gap: spacing.stackGap + 8,
     paddingHorizontal: spacing.mobileMargin,
     paddingTop: spacing.containerPadding,
@@ -914,43 +918,33 @@ const styles = StyleSheet.create({
   resultSections: { gap: spacing.stackGap + 8 },
   header: {
     ...elevation.level1Card,
-    padding: spacing.cardInternal,
-    borderRadius: radius.xxl,
-    borderWidth: 1,
-    borderColor: colors.primary + '0D',
-    gap: 20,
-  },
-  headerRow: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    gap: spacing.inlineGap,
-  },
-  productImage: {
-    flex: 1,
-    height: 148,
+    alignItems: 'center',
+    padding: 16,
     borderRadius: radius.xl,
+    gap: 16,
+  },
+  headerStacked: { flexDirection: 'column', alignItems: 'flex-start' },
+  productImage: {
+    width: 76,
+    height: 92,
+    borderRadius: radius.lg,
     backgroundColor: colors.surfaceContainerLow,
   },
   productImageFallback: {
-    flex: 1,
-    height: 148,
-    borderRadius: radius.xl,
-    backgroundColor: colors.secondaryContainer + '66',
+    width: 76,
+    height: 92,
+    borderRadius: radius.lg,
+    backgroundColor: colors.surfaceContainerLow,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  productImageFallbackIcon: {
-    fontSize: 28,
-  },
-  headerInfo: {
-    gap: 8,
-  },
+  headerInfo: { flexShrink: 1, minWidth: 0, gap: 4 },
   productBadges: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 },
   categoryBadge: {
     ...typography.labelMd,
     color: colors.primary,
-    backgroundColor: colors.secondaryContainer,
+    backgroundColor: colors.selectedSurface,
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: radius.full,
@@ -967,33 +961,26 @@ const styles = StyleSheet.create({
   },
   barcodeLabel: { ...typography.bodySm, color: colors.onSurfaceVariant, marginTop: 4 },
   favoriteButton: {
-    width: 44,
-    height: 44,
-    borderRadius: radius.full,
+    width: spacing.touchTarget,
+    height: spacing.touchTarget,
+    borderRadius: radius.lg,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: colors.outlineVariant,
-    ...elevation.level1Card,
+    borderColor: colors.divider,
+    backgroundColor: colors.surfaceContainerLowest,
   },
-  favoriteButtonActive: {
-    borderColor: '#ef4444',
-    backgroundColor: '#fee2e2',
-  },
+  favoriteButtonActive: { borderColor: colors.secondary, backgroundColor: colors.selectedSurface },
   buttonPressed: {
     opacity: 0.7,
   },
-  eyebrow: {
-    ...typography.labelMd,
-    color: colors.primary, // #01261f
-  },
   productName: {
     ...typography.headlineLgMobile,
-    color: colors.onSurface, // #191c1d
+    color: colors.onSurface,
   },
   brand: {
     ...typography.bodyMd,
-    color: colors.onSurfaceVariant, // #414846
+    color: colors.onSurfaceVariant,
   },
   section: {
     gap: spacing.inlineGap,
@@ -1001,11 +988,12 @@ const styles = StyleSheet.create({
   sectionHeadingRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    gap: 8,
   },
   sectionTitle: {
-    ...typography.headlineMd,
-    color: colors.onSurface, // #191c1d
+    ...typography.headlineSm,
+    flexShrink: 1,
+    color: colors.onSurface,
   },
   nutritionHeading: {
     gap: 2,
@@ -1013,9 +1001,7 @@ const styles = StyleSheet.create({
   nutritionUnitLabel: {
     ...typography.labelSm,
     color: colors.onSurfaceVariant,
-    opacity: 0.8,
   },
-  // Katkı sayı etiketi: açık nane zemin, orman yeşili metin
   countChip: {
     ...typography.labelSm,
     minWidth: 28,
@@ -1023,8 +1009,8 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     overflow: 'hidden',
     textAlign: 'center',
-    color: colors.secondary, // #416656
-    backgroundColor: colors.secondaryContainer, // #c3ecd7
+    color: colors.secondary,
+    backgroundColor: colors.selectedSurface,
     borderRadius: radius.full,
   },
   nutritionGrid: {
@@ -1032,51 +1018,40 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: spacing.inlineGap,
   },
-  // Besin kartı: saf beyaz (#ffffff), 24px köşe, hafif gölge
   nutritionCard: {
     ...elevation.level1Card,
+    flexBasis: '48%',
     flexGrow: 1,
-    flexBasis: '45%',
+    minWidth: 0,
     gap: 6,
     minHeight: 94,
     justifyContent: 'center',
     padding: spacing.cardInternal,
-    borderRadius: radius.xxl, // 24px
+    borderRadius: radius.xl,
   },
+  nutritionCardFull: { flexBasis: '100%' },
   nutritionLabel: {
     ...typography.labelMd,
-    color: colors.onSurfaceVariant, // #414846
+    color: colors.onSurfaceVariant,
   },
   nutritionValue: {
     ...typography.headlineMd,
-    color: colors.primary, // #01261f
+    color: colors.primary,
   },
   flaggedList: {
     gap: spacing.inlineGap,
   },
-  // Kritik içerik kartı: beyaz zemin, sol kenarda risk rengi şerit
   flaggedCard: {
     ...elevation.level1Card,
     gap: 8,
-    padding: spacing.cardInternal,
-    borderRadius: radius.xxl, // 24px
-    borderLeftWidth: 4,
+    padding: 16,
+    borderRadius: radius.xl,
   },
-  // Kritik içerik çipi: risk rengi border + %12 opak zemin
-  flaggedChip: {
-    alignSelf: 'flex-start',
-    borderWidth: 1,
-    borderRadius: radius.full,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  flaggedChipText: {
-    ...typography.bodyMd,
-    fontWeight: '700',
-  },
+  flaggedChipText: { ...typography.action, color: colors.onSurface },
   flaggedRoleBadge: {
     alignSelf: 'flex-start',
     flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'center',
     backgroundColor: colors.surfaceContainerLow,
     paddingHorizontal: 10,
@@ -1099,37 +1074,34 @@ const styles = StyleSheet.create({
   },
   flaggedDescription: {
     ...typography.bodyMd,
-    color: colors.onSurfaceVariant, // #414846
+    color: colors.onSurfaceVariant,
     lineHeight: 20,
   },
-  // İçindekiler kartı: saf beyaz, 24px köşe
   ingredientsCard: {
     ...elevation.level1Card,
     padding: spacing.cardInternal,
-    borderRadius: radius.xxl, // 24px
+    borderRadius: radius.xl,
   },
   ingredientsText: {
     ...typography.bodyMd,
-    color: colors.onSurface, // #191c1d
+    color: colors.onSurface,
     lineHeight: 26,
   },
   additivesList: {
     gap: spacing.inlineGap,
   },
-  // Katkı maddesi kartı: saf beyaz, 24px köşe — risk rengi border ile gelir
   additiveCard: {
     ...elevation.level1Card,
     gap: 8,
     padding: spacing.cardInternal,
-    borderRadius: radius.xxl, // 24px
-    borderLeftWidth: 4,
-    borderLeftColor: colors.outlineVariant,
+    borderRadius: radius.xl,
   },
   additiveTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: spacing.inlineGap,
+    gap: 8,
+    flexWrap: 'wrap',
   },
   // E-kodu çipi: açık nane zemin, orman yeşili metin
   codeChip: {
@@ -1137,12 +1109,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 5,
     overflow: 'hidden',
-    color: colors.secondary, // #416656
-    backgroundColor: colors.secondaryContainer, // #c3ecd7
+    color: colors.secondary,
+    backgroundColor: colors.selectedSurface,
     borderRadius: radius.full,
   },
   riskBadge: {
-    borderWidth: 1,
+    alignSelf: 'flex-start',
     borderRadius: radius.full,
     paddingHorizontal: 10,
     paddingVertical: 5,
@@ -1152,12 +1124,12 @@ const styles = StyleSheet.create({
   },
   additiveName: {
     ...typography.bodyLg,
-    color: colors.onSurface, // #191c1d
+    color: colors.onSurface,
     fontWeight: '600',
   },
   additiveCategory: {
     ...typography.bodyMd,
-    color: colors.onSurfaceVariant, // #414846
+    color: colors.onSurfaceVariant,
   },
   additiveDescription: {
     ...typography.bodyMd,
@@ -1166,30 +1138,28 @@ const styles = StyleSheet.create({
   emptyCard: {
     ...elevation.level1Card,
     padding: spacing.cardInternal,
-    borderRadius: radius.xxl, // 24px
+    borderRadius: radius.xl,
   },
   emptyText: {
     ...typography.bodyMd,
     color: colors.onSurfaceVariant,
   },
+  allergenCard: { padding: 16, borderRadius: radius.xl, backgroundColor: colors.surfaceContainerLowest, borderWidth: 1, borderColor: colors.divider },
+  allergenCardWarning: { backgroundColor: colors.riskSurface.high, borderColor: colors.errorContainer },
+  allergenHeading: { flexDirection: 'row', gap: 8, alignItems: 'center' },
   allergenList: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
   },
-  // Alerjen çipi: çok açık nane (#f3f4f5) zemin, hafif yeşil-gri border, koyu metin
   allergenChip: {
-    borderWidth: 1,
-    borderColor: colors.outlineVariant, // #c1c8c4
+    maxWidth: '100%',
     borderRadius: radius.full,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    backgroundColor: colors.surfaceContainerLow, // #f3f4f5
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    backgroundColor: colors.surfaceContainerLowest,
   },
-  allergenChipText: {
-    ...typography.bodyMd,
-    color: colors.onSurface, // #191c1d
-  },
+  allergenChipText: { ...typography.action, color: colors.onErrorContainer },
   disclaimerBox: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -1228,14 +1198,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     minHeight: 48,
     borderWidth: 1,
-    borderColor: colors.outlineVariant, // #c1c8c4
+    borderColor: colors.outlineVariant,
     borderRadius: radius.full,
     paddingHorizontal: 18,
-    backgroundColor: colors.surfaceContainerLowest, // #ffffff
+    backgroundColor: colors.surfaceContainerLowest,
   },
   reportButtonText: {
     ...typography.bodyMd,
-    color: colors.onSurface, // #191c1d
+    color: colors.onSurface,
     fontWeight: '700',
   },
   // Modal arka planı: siyah yarı saydam
@@ -1254,7 +1224,7 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     padding: spacing.cardInternal,
     borderRadius: radius.xxl, // 24px
-    backgroundColor: colors.surfaceContainerLowest, // #ffffff explicit
+    backgroundColor: colors.surfaceContainerLowest,
   },
   modalHeader: {
     flexDirection: 'row',
@@ -1263,16 +1233,16 @@ const styles = StyleSheet.create({
   },
   modalTitle: {
     ...typography.headlineMd,
-    color: colors.onSurface, // #191c1d
+    color: colors.onSurface,
   },
   modalClose: {
     fontSize: 30,
     lineHeight: 30,
-    color: colors.onSurfaceVariant, // #414846
+    color: colors.onSurfaceVariant,
   },
   modalDescription: {
     ...typography.bodyMd,
-    color: colors.onSurfaceVariant, // #414846
+    color: colors.onSurfaceVariant,
   },
   reportFieldOptions: {
     flexDirection: 'row',
@@ -1282,38 +1252,38 @@ const styles = StyleSheet.create({
   // Alan seçim çipleri: açık zemin, seçili → orman yeşili dolu
   reportFieldOption: {
     borderWidth: 1,
-    borderColor: colors.outlineVariant, // #c1c8c4
+    borderColor: colors.outlineVariant,
     borderRadius: radius.full,
     paddingHorizontal: 12,
     paddingVertical: 9,
-    backgroundColor: colors.surfaceContainerLow, // #f3f4f5
+    backgroundColor: colors.surfaceContainerLow,
   },
   reportFieldOptionSelected: {
-    borderColor: colors.primary, // #01261f
+    borderColor: colors.primary,
     backgroundColor: colors.primary,
   },
   reportFieldOptionText: {
     ...typography.bodyMd,
-    color: colors.onSurface, // #191c1d
+    color: colors.onSurface,
     fontWeight: '600',
   },
   reportFieldOptionTextSelected: {
-    color: colors.onPrimary, // #ffffff
+    color: colors.onPrimary,
   },
   commentLabel: {
     ...typography.bodyMd,
-    color: colors.onSurface, // #191c1d
+    color: colors.onSurface,
     fontWeight: '600',
   },
   // Yorum alanı: saf beyaz zemin, açık gri border
   commentInput: {
     minHeight: 112,
     borderWidth: 1,
-    borderColor: colors.outlineVariant, // #c1c8c4
+    borderColor: colors.outlineVariant,
     borderRadius: radius.md,
     padding: 12,
-    color: colors.onSurface, // #191c1d
-    backgroundColor: colors.surfaceContainerLowest, // #ffffff
+    color: colors.onSurface,
+    backgroundColor: colors.surfaceContainerLowest,
   },
   modalActions: {
     flexDirection: 'row',
@@ -1328,7 +1298,7 @@ const styles = StyleSheet.create({
   },
   cancelButtonText: {
     ...typography.bodyMd,
-    color: colors.onSurfaceVariant, // #414846
+    color: colors.onSurfaceVariant,
     fontWeight: '700',
   },
   // Gönder butonu: Orman Yeşili (#01261f) dolu
@@ -1339,11 +1309,11 @@ const styles = StyleSheet.create({
     minHeight: 44,
     borderRadius: radius.full,
     paddingHorizontal: 18,
-    backgroundColor: colors.primary, // #01261f
+    backgroundColor: colors.primary,
   },
   submitButtonText: {
     ...typography.bodyMd,
-    color: colors.onPrimary, // #ffffff
+    color: colors.onPrimary,
     fontWeight: '700',
   },
   trMarketBannerCard: {
@@ -1351,7 +1321,6 @@ const styles = StyleSheet.create({
     borderRadius: radius.xxl,
     borderWidth: 1,
     borderColor: colors.outlineVariant,
-    borderLeftWidth: 4,
     borderLeftColor: colors.primary,
     padding: spacing.cardInternal,
     gap: 8,

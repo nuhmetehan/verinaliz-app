@@ -1,5 +1,5 @@
 # Verinaliz Kullanım Koşulları
-**Son Güncelleme:** 20 Kasım 2026
+**Son Güncelleme:** 21 Kasım 2026
 
 Verinaliz uygulamasını ("Uygulama") kullanarak aşağıdaki Kullanım Koşullarını ("Koşullar") kabul etmiş sayılırsınız. Lütfen bu koşulları dikkatlice okuyunuz.
 

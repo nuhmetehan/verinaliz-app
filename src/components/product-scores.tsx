@@ -48,37 +48,38 @@ export function ProductScores({ grade, nova }: { grade?: string | null; nova?: n
 
   return (
     <View style={styles.section}>
-      <Text style={styles.heading}>Beslenme ve işlenme bilgisi</Text>
-      {validGrade && <View style={styles.card}>
-        <Text style={styles.eyebrow}>BESİN PROFİLİ</Text>
-        <Text style={styles.title}>Nutri-Score</Text>
-        <View accessible accessibilityLabel={`Nutri-Score: ${grade!.toUpperCase()}. A ile E arasında besin profili.`} style={styles.scale}>
-          {grades.map((letter, index) => {
-            const selected = letter === grade!.toUpperCase();
-            return <View key={letter} style={styles.gradeColumn}>
-              <Animated.View style={[styles.gradeCell, { backgroundColor: selected ? gradeColors[index] : colors.surfaceContainerLow, borderColor: selected ? gradeColors[index] : colors.outlineVariant, transform: [{ scale: selected ? emphasis : 1 }] }]}>
-                <Text style={[styles.gradeLetter, { color: selected ? colors.onPrimary : gradeColors[index] }]}>{letter}</Text>
-              </Animated.View>
-              <Text style={styles.selectionMarker}>{selected ? '●' : ' '}</Text>
-            </View>;
-          })}
-        </View>
-        <Text style={styles.result}>Besin profili: {grade!.toUpperCase()}</Text>
-        <Text style={styles.text}>Besin içeriği değerlendirmesi. A daha elverişli, E daha az elverişli besin profilini belirtir.</Text>
-      </View>}
-      {validNova && <View style={styles.card}>
-        <Text style={styles.eyebrow}>İŞLENME DÜZEYİ</Text>
-        <Text style={styles.title}>NOVA</Text>
-        <View accessible accessibilityLabel={`NOVA ${nova}, 4 grup içinde. ${novaLabels[nova! - 1]}.`} style={styles.scale}>
-          {[1, 2, 3, 4].map((level) => <View key={level} style={styles.novaColumn}>
-            <Text style={[styles.novaNumber, level === nova && styles.novaNumberSelected]}>{level}</Text>
-            <NovaSegment level={level} nova={nova!} />
-            <Text style={styles.selectionMarker}>{level === nova ? '●' : ' '}</Text>
-          </View>)}
-        </View>
-        <Text style={styles.result}>Grup {nova} · {novaLabels[nova! - 1]}</Text>
-        <Text style={styles.text}>Gıdanın işlenme biçimi ve amacına göre sınıflandırılmasıdır.</Text>
-      </View>}
+      <Text accessibilityRole="header" style={styles.heading}>Değerlendirme özeti</Text>
+      <View style={styles.card}>
+        {validGrade && <View style={styles.scoreBlock}>
+          <Text style={styles.title}>Nutri-Score</Text>
+          <View accessible accessibilityLabel={`Nutri-Score: ${grade!.toUpperCase()}. A ile E arasında besin profili.`} style={styles.scale}>
+            {grades.map((letter, index) => {
+              const selected = letter === grade!.toUpperCase();
+              return <View key={letter} style={styles.gradeColumn}>
+                <Animated.View style={[styles.gradeCell, { backgroundColor: selected ? gradeColors[index] : colors.surfaceContainerLow, borderColor: selected ? gradeColors[index] : colors.outlineVariant, transform: [{ scale: selected ? emphasis : 1 }] }]}>
+                  <Text style={[styles.gradeLetter, { color: selected ? colors.onPrimary : gradeColors[index] }]}>{letter}</Text>
+                </Animated.View>
+                <Text style={styles.selectionMarker}>{selected ? '●' : ' '}</Text>
+              </View>;
+            })}
+          </View>
+          <Text style={styles.result}>Besin profili: {grade!.toUpperCase()}</Text>
+          <Text style={styles.text}>Besin içeriği değerlendirmesi. A daha elverişli, E daha az elverişli besin profilini belirtir.</Text>
+        </View>}
+        {validGrade && validNova && <View style={styles.divider} />}
+        {validNova && <View style={styles.scoreBlock}>
+          <Text style={styles.title}>NOVA</Text>
+          <View accessible accessibilityLabel={`NOVA ${nova}, 4 grup içinde. ${novaLabels[nova! - 1]}.`} style={styles.scale}>
+            {[1, 2, 3, 4].map((level) => <View key={level} style={styles.novaColumn}>
+              <Text style={[styles.novaNumber, level === nova && styles.novaNumberSelected]}>{level}</Text>
+              <NovaSegment level={level} nova={nova!} />
+              <Text style={styles.selectionMarker}>{level === nova ? '●' : ' '}</Text>
+            </View>)}
+          </View>
+          <Text style={styles.result}>Grup {nova} · {novaLabels[nova! - 1]}</Text>
+          <Text style={styles.text}>Gıdanın işlenme biçimi ve amacına göre sınıflandırılmasıdır.</Text>
+        </View>}
+      </View>
       <Text style={styles.text}>Kaynak: Open Food Facts. Değerler kaynaktan aktarılmıştır; uygulama tarafından hesaplanmaz. Tek başına tüketim miktarını veya sıklığını belirlemez.</Text>
     </View>
   );
@@ -87,12 +88,13 @@ export function ProductScores({ grade, nova }: { grade?: string | null; nova?: n
 const styles = StyleSheet.create({
   section: { gap: 12 },
   heading: { ...typography.headlineSm, color: colors.onSurface },
-  card: { ...elevation.level1Card, padding: 20, gap: 8, borderRadius: radius.xxl, borderWidth: 1, borderColor: colors.primary + '0D' },
-  eyebrow: { ...typography.labelSm, color: colors.secondary, letterSpacing: 1 },
-  title: { ...typography.headlineSm, color: colors.primary },
+  card: { ...elevation.level1Card, padding: 16, gap: 16, borderRadius: radius.xl },
+  scoreBlock: { gap: 6 },
+  divider: { height: 1, backgroundColor: colors.divider },
+  title: { ...typography.action, color: colors.primary },
   text: { ...typography.bodySm, color: colors.onSurfaceVariant },
   result: { ...typography.bodyMd, fontFamily: typography.labelMd.fontFamily, color: colors.primary },
-  scale: { flexDirection: 'row', gap: 8, marginTop: 8 },
+  scale: { flexDirection: 'row', gap: 6, marginTop: 4 },
   gradeColumn: { flex: 1, alignItems: 'center' },
   gradeCell: { width: '100%', minHeight: 48, alignItems: 'center', justifyContent: 'center', borderRadius: radius.lg, borderWidth: 1 },
   gradeLetter: { ...typography.headlineSm },

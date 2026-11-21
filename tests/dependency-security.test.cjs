@@ -28,8 +28,10 @@ test('amplifying glob preprocessing is bounded by the patched upstream matcher',
   assert.equal(result.status, 0, result.stderr);
 });
 
-test('cancelled glob scans stop before reading the filesystem', async () => {
-  const { glob } = require('glob');
+const globPackages = Object.keys(require('../package-lock.json').packages)
+  .filter(name => name.split('/').slice(-2).join('/') === 'node_modules/glob');
+for (const installed of globPackages) test(`cancelled scans in ${installed} stop before reading the filesystem`, async () => {
+  const { glob } = require(require('node:path').resolve(installed));
   const controller = new AbortController();
   controller.abort(new Error('security probe abort'));
   let reads = 0;

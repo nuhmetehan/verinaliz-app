@@ -1,3 +1,4 @@
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import type { Href } from 'expo-router';
 import {
   TabList,
@@ -7,7 +8,6 @@ import {
   TabTrigger,
   TabTriggerSlotProps,
 } from 'expo-router/ui';
-import { SymbolView } from 'expo-symbols';
 import type { ComponentPropsWithRef } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
   colors as themeColors,
+  radius,
   spacing,
   typography,
 } from '@/theme/theme';
@@ -28,17 +29,14 @@ export default function AppTabs() {
       <TabSlot style={styles.tabContent} />
       <TabList asChild>
         <CustomTabList>
-          {/* Sol: Geçmiş */}
           <TabTrigger name="explore" href="/(tabs)/explore" asChild>
             <TabButton icon="history">Geçmiş</TabButton>
           </TabTrigger>
 
-          {/* Orta: Tara (Raised Floating Button) */}
           <TabTrigger name="home" href="/(tabs)" asChild>
             <ScanTabButton />
           </TabTrigger>
 
-          {/* Sağ: Rehber */}
           <TabTrigger name="guide" href={'/(tabs)/guide' as Href} asChild>
             <TabButton icon="book">Rehber</TabButton>
           </TabTrigger>
@@ -56,16 +54,14 @@ function TabButton({
 }: TabButtonProps & { icon: 'history' | 'book' }) {
   const tintColor = isFocused ? themeColors.primary : themeColors.outline;
 
-  const iconName =
-    icon === 'history'
-      ? { ios: 'clock' as const, android: 'history' as const, web: 'history' as const }
-      : { ios: 'book' as const, android: 'menu_book' as const, web: 'menu_book' as const };
-
   return (
     <Pressable
       {...props}
-      style={({ pressed }) => [styles.tabButton, pressed && styles.pressed]}>
-      <SymbolView name={iconName} size={24} tintColor={tintColor} />
+      accessibilityRole="tab"
+      accessibilityState={{ selected: isFocused }}
+      style={({ pressed }) => [styles.tabButton, isFocused && styles.tabButtonSelected, pressed && styles.pressed]}>
+      <MaterialCommunityIcons name={icon === 'history' ? 'history' : 'book-open-outline'}
+        size={22} color={tintColor} allowFontScaling={false} accessible={false} importantForAccessibility="no" />
       <Text style={[styles.tabLabel, { color: tintColor }]}>{children}</Text>
     </Pressable>
   );
@@ -78,22 +74,18 @@ function ScanTabButton({
   return (
     <Pressable
       {...props}
-      accessibilityRole="button"
+      accessibilityRole="tab"
       accessibilityLabel="Tara"
+      accessibilityState={{ selected: isFocused }}
       style={({ pressed }) => [
         styles.scanButtonWrapper,
-        pressed && styles.pressed,
+        isFocused && styles.scanSelected,
+        pressed && styles.scanPressed,
       ]}>
       <View style={styles.scanButton}>
-        <SymbolView
-          name={{
-            ios: 'viewfinder',
-            android: 'qr_code_scanner',
-            web: 'qr_code_scanner',
-          }}
-          size={26}
-          tintColor={themeColors.onPrimary}
-        />
+        <MaterialCommunityIcons name="barcode-scan" size={23} color={themeColors.onPrimary}
+          allowFontScaling={false} accessible={false} importantForAccessibility="no" />
+        <Text style={styles.scanLabel}>Tara</Text>
       </View>
     </Pressable>
   );
@@ -114,7 +106,7 @@ function CustomTabList({
         { paddingBottom: Math.max(insets.bottom, 8) },
         style,
       ]}>
-      {children}
+      <View style={styles.tabBarInner}>{children}</View>
     </View>
   );
 }
@@ -125,47 +117,46 @@ const styles = StyleSheet.create({
     backgroundColor: themeColors.background,
   },
   tabBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
     paddingTop: 8,
-    paddingHorizontal: spacing.mobileMargin,
     borderTopWidth: 1,
-    borderTopColor: themeColors.inverseOnSurface,
+    borderTopColor: themeColors.divider,
     backgroundColor: themeColors.surfaceContainerLowest,
-    overflow: 'visible',
   },
-  pressed: {
-    opacity: 0.75,
+  tabBarInner: {
+    width: '100%',
+    maxWidth: 560,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    paddingHorizontal: spacing.mobileMargin,
+    gap: 8,
   },
+  pressed: { backgroundColor: themeColors.surfaceContainerLow },
   tabButton: {
     flex: 1,
+    minWidth: 0,
+    minHeight: spacing.touchTarget,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 4,
-    paddingVertical: 4,
+    gap: 3,
+    paddingHorizontal: 4,
+    paddingVertical: 5,
+    borderRadius: radius.lg,
   },
-  tabLabel: {
-    ...typography.labelSm,
-    fontWeight: '600',
-  },
+  tabButtonSelected: { backgroundColor: themeColors.selectedSurface },
+  tabLabel: { ...typography.labelSm, textAlign: 'center' },
   scanButtonWrapper: {
     flex: 1,
-    alignItems: 'center',
+    minWidth: 0,
+    minHeight: spacing.touchTarget,
     justifyContent: 'center',
-    overflow: 'visible',
-  },
-  scanButton: {
-    width: 58,
-    height: 58,
-    borderRadius: 29,
+    borderRadius: radius.lg,
     backgroundColor: themeColors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: -20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
-    elevation: 6,
+    borderWidth: 1,
+    borderColor: themeColors.primary,
   },
+  scanSelected: { borderColor: themeColors.secondaryFixedDim },
+  scanPressed: { backgroundColor: themeColors.primaryContainer },
+  scanButton: { alignItems: 'center', justifyContent: 'center', gap: 3, paddingHorizontal: 4, paddingVertical: 5 },
+  scanLabel: { ...typography.labelSm, color: themeColors.onPrimary, textAlign: 'center' },
 });

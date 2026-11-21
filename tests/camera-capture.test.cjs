@@ -18,10 +18,12 @@ function fixture({ granted = true, takePicture = async () => ({ uri: 'file:///ca
       useState(value) { const i = cursor++; if (!(i in hooks)) hooks[i] = value; return [hooks[i], next => { hooks[i] = next; }]; },
     },
     'react/jsx-runtime': { jsx, jsxs: jsx },
+    '@expo/vector-icons': { Feather: 'Feather' },
+    '@/theme/theme': require('../src/theme/theme.ts'),
     'expo-camera': { CameraView: 'CameraView', useCameraPermissions: () => [{ granted, canAskAgain: true }, async () => { requests++; }] },
     'react-native-safe-area-context': { SafeAreaView: 'SafeAreaView' },
     'react-native': {
-      ActivityIndicator: 'ActivityIndicator', Modal: 'Modal', Pressable: 'Pressable', Text: 'Text', View: 'View',
+      ActivityIndicator: 'ActivityIndicator', Modal: 'Modal', Pressable: 'Pressable', ScrollView: 'ScrollView', Text: 'Text', View: 'View',
       Platform: { OS: 'android' }, Linking: { openSettings: async () => {} },
       StyleSheet: { create: value => value }, Alert: { alert: (...args) => alerts.push(args) },
     },

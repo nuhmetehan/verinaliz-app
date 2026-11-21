@@ -6,7 +6,7 @@ import { colors, radius, spacing, typography } from '@/theme/theme';
 
 type ScreenHeaderProps = {
   title: string;
-  subtitle: string;
+  subtitle?: string;
   onNavigate: () => void;
   navigation?: 'menu' | 'back';
   action?: ReactNode;
@@ -26,7 +26,7 @@ export function ScreenHeader({ title, subtitle, onNavigate, navigation = 'menu',
         </Pressable>
         <View style={styles.heading}>
           <Text accessibilityRole="header" style={styles.title}>{title}</Text>
-          <Text style={styles.subtitle}>{subtitle}</Text>
+          {subtitle && <Text style={styles.subtitle}>{subtitle}</Text>}
         </View>
         {action}
       </View>
@@ -39,25 +39,24 @@ const styles = StyleSheet.create({
   container: {
     backgroundColor: colors.headerSurface,
     paddingHorizontal: spacing.mobileMargin,
-    paddingTop: 14,
-    paddingBottom: 18,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.primary + '18',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.divider,
   },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   navigationButton: {
-    width: 44,
-    height: 44,
+    width: spacing.touchTarget,
+    height: spacing.touchTarget,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: radius.xl,
-    backgroundColor: '#FFFFFFB3',
+    borderRadius: radius.lg,
+    backgroundColor: colors.surfaceContainerLowest,
     borderWidth: 1,
-    borderColor: '#FFFFFFCC',
+    borderColor: colors.divider,
   },
   heading: { flex: 1, minWidth: 0, gap: 4 },
   title: { ...typography.headlineSm, fontFamily: typography.headlineLg.fontFamily, color: colors.primary },
-  subtitle: { ...typography.bodySm, color: colors.secondary },
-  controls: { marginTop: 18, gap: 12 },
-  pressed: { opacity: 0.65 },
+  subtitle: { ...typography.bodySm, color: colors.onSurfaceVariant },
+  controls: { marginTop: 12, gap: 12 },
+  pressed: { backgroundColor: colors.selectedSurface },
 });

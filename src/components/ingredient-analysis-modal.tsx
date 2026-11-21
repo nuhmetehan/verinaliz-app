@@ -1,4 +1,4 @@
-import { AntDesign, Entypo, MaterialIcons } from '@expo/vector-icons';
+import { AntDesign, Entypo, Feather, MaterialIcons } from '@expo/vector-icons';
 import axios, { isAxiosError } from 'axios';
 import { useEffect, useRef, useState } from 'react';
 import {
@@ -11,6 +11,7 @@ import {
   StyleSheet,
   Text,
   View,
+  useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -21,7 +22,7 @@ import { EmailSignInButton } from '@/components/email-sign-in';
 import { UnsupportedAuthEnvironmentError } from '@/utils/authRedirect';
 import { AI_PRIVACY_NOTICE, aiConsentHeaders } from '@/utils/aiPrivacy';
 import { RenameTitleModal } from '@/components/rename-title-modal';
-import { type AdditiveRisk, riskLabels } from '@/constants/riskLabels';
+import { getAdditiveRiskBadge, type AdditiveRisk } from '@/constants/riskLabels';
 import { colors, radius, spacing, typography } from '@/theme/theme';
 import { parseIngredientDescription } from '@/utils/ingredientFormat';
 import {
@@ -178,21 +179,21 @@ function getEvaluationBadge(level?: NutritionLevel, nutrientKey?: string) {
 
   if (isPositiveNutrient) {
     if (level === 'high') {
-      return { label: 'Zengin', color: colors.risk.safe, bg: `${colors.risk.safe}1A` };
+      return { label: 'Zengin', color: colors.risk.safe, bg: colors.riskSurface.safe };
     }
     if (level === 'moderate') {
-      return { label: 'Kaynak', color: colors.risk.safe, bg: `${colors.risk.safe}1A` };
+      return { label: 'Kaynak', color: colors.risk.safe, bg: colors.riskSurface.safe };
     }
     return null;
   }
 
   switch (level) {
     case 'high':
-      return { label: 'Yüksek', color: colors.risk.high, bg: `${colors.risk.high}1A` };
+      return { label: 'Yüksek', color: colors.risk.high, bg: colors.riskSurface.high };
     case 'moderate':
-      return { label: 'Orta', color: colors.risk.medium, bg: `${colors.risk.medium}1A` };
+      return { label: 'Orta', color: colors.risk.medium, bg: colors.riskSurface.medium };
     case 'low':
-      return { label: 'Düşük', color: colors.risk.safe, bg: `${colors.risk.safe}1A` };
+      return { label: 'Düşük', color: colors.risk.safe, bg: colors.riskSurface.safe };
     default:
       return null;
   }
@@ -339,45 +340,19 @@ export type IngredientAnalysisModalProps = {
   onOpenLegal?: (tab?: 'privacy' | 'terms') => void;
 };
 
-function getFlaggedRiskColor(risk?: string | null) {
+function getFlaggedRisk(risk?: string | null): AdditiveRisk | null {
   switch (risk?.toLowerCase()) {
     case 'high':
     case 'dangerous':
-      return colors.risk.high;
+      return 'dangerous';
     case 'medium':
     case 'moderate':
     case 'controversial':
-      return colors.risk.medium;
+      return 'controversial';
     case 'safe':
-      return colors.risk.safe;
-    default:
-      return colors.risk.high;
-  }
-}
-
-function getAdditiveRiskBadge(risk?: AdditiveRisk | null) {
-  switch (risk) {
-    case 'dangerous':
-      return { label: riskLabels.dangerous, color: colors.risk.high, bg: `${colors.risk.high}1A` };
-    case 'controversial':
-      return { label: riskLabels.controversial, color: colors.risk.medium, bg: `${colors.risk.medium}1A` };
-    case 'safe':
-      return { label: riskLabels.safe, color: colors.risk.safe, bg: `${colors.risk.safe}1A` };
+      return 'safe';
     default:
       return null;
-  }
-}
-
-function getAdditiveRiskColor(risk?: AdditiveRisk | null) {
-  switch (risk) {
-    case 'dangerous':
-      return colors.risk.high;
-    case 'controversial':
-      return colors.risk.medium;
-    case 'safe':
-      return colors.risk.safe;
-    default:
-      return colors.outlineVariant;
   }
 }
 
@@ -394,6 +369,8 @@ function IngredientAnalysisContent({
   onTitleChange,
   onOpenLegal,
 }: IngredientAnalysisModalProps) {
+  const { width, fontScale } = useWindowDimensions();
+  const stackedLayout = width < 360 || fontScale >= 1.4;
   const [analysisMode, setAnalysisMode] = useState<'label' | 'meal'>(initialMode);
   const [selectedAssets, setSelectedAssets] = useState<CapturedPhoto[]>([]);
   const [initialImageUris] = useState<string[]>(() => initialRecord?.imageUris?.length
@@ -771,7 +748,7 @@ function IngredientAnalysisContent({
       <SafeAreaView style={styles.modalContainer} edges={['top', 'bottom']}>
         {/* Üst Bar */}
         <View style={styles.headerBar}>
-          <Text style={styles.headerTitle} numberOfLines={1}>
+          <Text accessibilityRole="header" style={styles.headerTitle}>
             {modalHeaderTitle}
           </Text>
           <Pressable
@@ -784,15 +761,15 @@ function IngredientAnalysisContent({
               pressed && styles.buttonPressed,
               isAnalyzing && styles.buttonDisabled,
             ]}>
-            <Text style={styles.closeButtonText}>✕</Text>
+            <Feather name="x" size={21} color={colors.primary} />
           </Pressable>
         </View>
 
         {/* Yükleniyor Durumu */}
         {isAnalyzing && (
-          <View style={styles.loadingContainer}>
+          <ScrollView contentContainerStyle={styles.loadingContainer}>
             <ActivityIndicator size="large" color={colors.primary} />
-            <Text style={styles.loadingTitle}>
+            <Text accessibilityLiveRegion="polite" style={styles.loadingTitle}>
               {analysisMode === 'meal'
                 ? 'Öğün ve Porsiyonlar İnceleniyor...'
                 : 'Etiket ve İçerikler İnceleniyor...'}
@@ -802,7 +779,7 @@ function IngredientAnalysisContent({
                 ? 'Yapay zeka öğündeki görünen yiyecekleri ve yaklaşık porsiyon/besin aralıklarını tahmin ediyor'
                 : 'Yapay zeka gıda veya kozmetik içindekiler metnini, bileşenleri ve besin tablosunu analiz ediyor'}
             </Text>
-          </View>
+          </ScrollView>
         )}
 
         {/* Başlangıç Seçim / Önizleme Ekranı */}
@@ -812,19 +789,21 @@ function IngredientAnalysisContent({
             contentContainerStyle={styles.emptyContainer}
             showsVerticalScrollIndicator={false}>
             {/* Mod Seçici Sekmeler */}
-            <View style={styles.modeTabsContainer}>
+            <View style={[styles.modeTabsContainer, stackedLayout && styles.modeTabsStacked]}>
               <Pressable
                 accessibilityRole="tab"
                 accessibilityState={{ selected: analysisMode === 'label' }}
-                style={[
+                style={({ pressed }) => [
                   styles.modeTabButton,
+                  stackedLayout && styles.modeTabButtonStacked,
                   analysisMode === 'label' && styles.modeTabButtonActive,
+                  pressed && styles.buttonPressed,
                 ]}
                 onPress={() => handleSwitchMode('label')}>
                 <MaterialIcons
                   name="document-scanner"
                   size={17}
-                  color={analysisMode === 'label' ? colors.onPrimary : colors.onSurfaceVariant}
+                  color={analysisMode === 'label' ? colors.primary : colors.onSurfaceVariant}
                 />
                 <View style={styles.modeTabTextCol}>
                   <Text
@@ -847,15 +826,17 @@ function IngredientAnalysisContent({
               <Pressable
                 accessibilityRole="tab"
                 accessibilityState={{ selected: analysisMode === 'meal' }}
-                style={[
+                style={({ pressed }) => [
                   styles.modeTabButton,
+                  stackedLayout && styles.modeTabButtonStacked,
                   analysisMode === 'meal' && styles.modeTabButtonActive,
+                  pressed && styles.buttonPressed,
                 ]}
                 onPress={() => handleSwitchMode('meal')}>
                 <MaterialIcons
                   name="restaurant"
                   size={17}
-                  color={analysisMode === 'meal' ? colors.onPrimary : colors.onSurfaceVariant}
+                  color={analysisMode === 'meal' ? colors.primary : colors.onSurfaceVariant}
                 />
                 <View style={styles.modeTabTextCol}>
                   <Text
@@ -1255,7 +1236,7 @@ function IngredientAnalysisContent({
                     </View>
                     <View style={styles.nutritionGrid}>
                       {result.estimated_totals.calories_range ? (
-                        <View style={styles.nutritionCard}>
+                        <View style={[styles.nutritionCard, stackedLayout && styles.nutritionCardFull]}>
                           <Text style={styles.nutritionLabel}>Yaklaşık Kalori</Text>
                           <Text style={styles.nutritionValue}>
                             {result.estimated_totals.calories_range}
@@ -1263,7 +1244,7 @@ function IngredientAnalysisContent({
                         </View>
                       ) : null}
                       {result.estimated_totals.protein_range ? (
-                        <View style={styles.nutritionCard}>
+                        <View style={[styles.nutritionCard, stackedLayout && styles.nutritionCardFull]}>
                           <Text style={styles.nutritionLabel}>Yaklaşık Protein</Text>
                           <Text style={styles.nutritionValue}>
                             {result.estimated_totals.protein_range}
@@ -1271,7 +1252,7 @@ function IngredientAnalysisContent({
                         </View>
                       ) : null}
                       {result.estimated_totals.carbs_range ? (
-                        <View style={styles.nutritionCard}>
+                        <View style={[styles.nutritionCard, stackedLayout && styles.nutritionCardFull]}>
                           <Text style={styles.nutritionLabel}>Yaklaşık Karbonhidrat</Text>
                           <Text style={styles.nutritionValue}>
                             {result.estimated_totals.carbs_range}
@@ -1279,7 +1260,7 @@ function IngredientAnalysisContent({
                         </View>
                       ) : null}
                       {result.estimated_totals.fat_range ? (
-                        <View style={styles.nutritionCard}>
+                        <View style={[styles.nutritionCard, stackedLayout && styles.nutritionCardFull]}>
                           <Text style={styles.nutritionLabel}>Yaklaşık Yağ</Text>
                           <Text style={styles.nutritionValue}>
                             {result.estimated_totals.fat_range}
@@ -1412,7 +1393,7 @@ function IngredientAnalysisContent({
                         const evalBadge = getEvaluationBadge(evaluation?.level, evaluationNutrient);
 
                         return (
-                          <View key={key} style={styles.nutritionCard}>
+                          <View key={key} style={[styles.nutritionCard, stackedLayout && styles.nutritionCardFull]}>
                             <View style={styles.nutritionCardHeader}>
                               <Text style={styles.nutritionLabel}>{label}</Text>
                               {evalBadge && (
@@ -1493,7 +1474,7 @@ function IngredientAnalysisContent({
                     </View>
 
                     {result.flagged_ingredients.map((item, index) => {
-                      const accentColor = getFlaggedRiskColor(item.risk);
+                      const riskBadge = getAdditiveRiskBadge(getFlaggedRisk(item.risk));
                       const { category: role, description: cleanDesc } = parseIngredientDescription(
                         item.description,
                       );
@@ -1501,19 +1482,13 @@ function IngredientAnalysisContent({
                       return (
                         <View
                           key={`${item.name}-${index}`}
-                          style={[styles.flaggedCard, { borderLeftColor: accentColor }]}>
-                          <View
-                            style={[
-                              styles.flaggedChip,
-                              {
-                                borderColor: accentColor,
-                                backgroundColor: `${accentColor}1A`,
-                              },
-                            ]}>
-                            <Text style={[styles.flaggedChipText, { color: accentColor }]}>
-                              {item.name}
-                            </Text>
-                          </View>
+                          style={styles.flaggedCard}>
+                          <Text style={styles.flaggedChipText}>{item.name}</Text>
+                          {riskBadge && (
+                            <View style={[styles.riskBadge, { backgroundColor: riskBadge.bg }]}>
+                              <Text style={[styles.riskBadgeText, { color: riskBadge.color }]}>{riskBadge.label}</Text>
+                            </View>
+                          )}
                           {role ? (
                             <View style={styles.flaggedRoleBadge}>
                               <Text style={styles.flaggedRoleLabel}>İşlev: </Text>
@@ -1543,11 +1518,10 @@ function IngredientAnalysisContent({
 
                     {result.additives.map((additive, index) => {
                       const riskBadge = getAdditiveRiskBadge(additive.risk);
-                      const additiveAccentColor = getAdditiveRiskColor(additive.risk);
                       return (
                         <View
                           key={`${additive.code}-${index}`}
-                          style={[styles.additiveCard, { borderLeftColor: additiveAccentColor }]}>
+                          style={styles.additiveCard}>
                           <View style={styles.additiveHeader}>
                             <View style={styles.additiveCodeBadge}>
                               <Text style={styles.additiveCodeText}>{additive.code}</Text>
@@ -1617,6 +1591,7 @@ function IngredientAnalysisContent({
                               />
                               <View style={styles.ingredientRowContent}>
                                 <Text style={styles.ingredientRowTitle}>{title}</Text>
+                                {alert.hasAlert && <Text style={[styles.riskBadgeText, { color: alert.color }]}>Dikkat çeken içerik</Text>}
                                 {subtitle ? (
                                   <Text style={styles.ingredientRowSubtitle}>{subtitle}</Text>
                                 ) : null}
@@ -1717,12 +1692,12 @@ const styles = StyleSheet.create({
   headerBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    gap: 12,
     paddingHorizontal: spacing.mobileMargin,
-    paddingVertical: 14,
+    paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: colors.outlineVariant,
-    backgroundColor: colors.surfaceContainerLowest,
+    borderBottomColor: colors.divider,
+    backgroundColor: colors.headerSurface,
   },
   headerTitleGroup: {
     flexDirection: 'row',
@@ -1734,20 +1709,16 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     ...typography.headlineSm,
-    color: colors.onSurface,
+    flex: 1,
+    color: colors.primary,
   },
   closeButton: {
-    width: 36,
-    height: 36,
-    borderRadius: radius.full,
+    width: spacing.touchTarget,
+    height: spacing.touchTarget,
+    borderRadius: radius.lg,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.surfaceContainerHigh,
-  },
-  closeButtonText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.onSurfaceVariant,
+    backgroundColor: colors.surfaceContainerLowest,
   },
   buttonPressed: {
     opacity: 0.75,
@@ -1756,7 +1727,8 @@ const styles = StyleSheet.create({
     opacity: 0.4,
   },
   loadingContainer: {
-    flex: 1,
+    flexGrow: 1,
+    paddingVertical: 20,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 20,
@@ -1778,7 +1750,10 @@ const styles = StyleSheet.create({
   emptyContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 24,
+    width: '100%',
+    maxWidth: 680,
+    alignSelf: 'center',
+    paddingHorizontal: spacing.mobileMargin,
     paddingVertical: 20,
   },
   emptyIconCircle: {
@@ -1822,11 +1797,11 @@ const styles = StyleSheet.create({
     borderColor: `${colors.primary}30`,
   },
   quotaBadgeWarning: {
-    backgroundColor: `${colors.risk.medium}18`,
+    backgroundColor: colors.riskSurface.medium,
     borderColor: `${colors.risk.medium}40`,
   },
   quotaBadgeExhausted: {
-    backgroundColor: `${colors.risk.high}14`,
+    backgroundColor: colors.riskSurface.high,
     borderColor: `${colors.risk.high}40`,
   },
   quotaBadgeIcon: {
@@ -1861,12 +1836,14 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   primaryActionButton: {
+    minHeight: spacing.touchTarget,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
     borderRadius: radius.lg,
-    paddingVertical: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
     backgroundColor: colors.primary,
     elevation: 2,
     shadowColor: '#000000',
@@ -1875,11 +1852,13 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
   },
   primaryActionButtonText: {
-    ...typography.bodyMd,
+    ...typography.action,
+    flexShrink: 1,
     color: colors.onPrimary,
     fontWeight: '700',
   },
   secondaryActionButton: {
+    minHeight: spacing.touchTarget,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -1891,7 +1870,8 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
   },
   secondaryActionButtonText: {
-    ...typography.bodyMd,
+    ...typography.action,
+    flexShrink: 1,
     color: colors.onSurface,
     fontWeight: '600',
   },
@@ -1916,7 +1896,8 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   privacyNoticeHeaderTitle: {
-    ...typography.bodyMd,
+    ...typography.action,
+    flexShrink: 1,
     color: colors.onSurface,
     fontWeight: '700',
   },
@@ -1951,6 +1932,7 @@ const styles = StyleSheet.create({
     color: colors.onSurface,
   },
   privacyNoticeLinkButton: {
+    minHeight: spacing.touchTarget,
     alignSelf: 'flex-start',
     flexDirection: 'row',
     alignItems: 'center',
@@ -1965,6 +1947,9 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   scrollContent: {
+    width: '100%',
+    maxWidth: 680,
+    alignSelf: 'center',
     paddingHorizontal: spacing.mobileMargin,
     paddingTop: 16,
     paddingBottom: 40,
@@ -1988,6 +1973,7 @@ const styles = StyleSheet.create({
   },
   topResultInfo: {
     flex: 1,
+    minWidth: 0,
     gap: 4,
   },
   topResultTitleRow: {
@@ -2004,8 +1990,9 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   editTitleButton: {
-    padding: 4,
-    borderRadius: radius.full,
+    width: spacing.touchTarget,
+    height: spacing.touchTarget,
+    borderRadius: radius.lg,
     backgroundColor: colors.surfaceContainerHigh,
     alignItems: 'center',
     justifyContent: 'center',
@@ -2014,13 +2001,9 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   summaryCard: {
-    backgroundColor: colors.surfaceContainerLowest,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.outlineVariant,
-    borderLeftWidth: 4,
-    borderLeftColor: colors.primary,
-    padding: 14,
+    backgroundColor: colors.headerSurface,
+    borderRadius: radius.xl,
+    padding: 16,
     gap: 8,
   },
   summaryHeader: {
@@ -2030,15 +2013,12 @@ const styles = StyleSheet.create({
   },
   summaryHeaderTitle: {
     ...typography.headlineSm,
-    fontSize: 16,
-    lineHeight: 22,
+    flexShrink: 1,
     color: colors.onSurface,
     fontWeight: '700',
   },
   summaryText: {
     ...typography.bodyMd,
-    fontSize: 14,
-    lineHeight: 22,
     color: colors.onSurfaceVariant,
   },
   aiGeneratedBadge: {
@@ -2048,18 +2028,18 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   aiGeneratedText: {
-    ...typography.bodyMd,
-    fontSize: 11,
+    ...typography.bodySm,
+    flexShrink: 1,
     color: colors.onSurfaceVariant,
     fontStyle: 'italic',
   },
   safeBannerCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#e8f5e9',
+    backgroundColor: colors.riskSurface.safe,
     borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: '#81c784',
+    borderColor: colors.divider,
     padding: 14,
     gap: 12,
   },
@@ -2067,7 +2047,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: radius.full,
-    backgroundColor: '#2e7d32',
+    backgroundColor: colors.secondary,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -2084,12 +2064,12 @@ const styles = StyleSheet.create({
     ...typography.headlineSm,
     fontSize: 16,
     lineHeight: 22,
-    color: '#1b5e20',
+    color: colors.primary,
     fontWeight: '700',
   },
   safeBannerDescription: {
     ...typography.bodySm,
-    color: '#2e7d32',
+    color: colors.secondary,
     lineHeight: 18,
   },
   section: {
@@ -2102,13 +2082,14 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     ...typography.headlineSm,
+    flexShrink: 1,
     fontSize: 18,
     lineHeight: 24,
     color: colors.onSurface,
     fontWeight: '700',
   },
   badgeCount: {
-    backgroundColor: colors.surfaceContainerHigh,
+    backgroundColor: colors.selectedSurface,
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: radius.full,
@@ -2123,26 +2104,16 @@ const styles = StyleSheet.create({
   flaggedCard: {
     backgroundColor: colors.surfaceContainerLowest,
     borderRadius: radius.md,
-    borderLeftWidth: 4,
     borderWidth: 1,
     borderColor: colors.outlineVariant,
     padding: 14,
     gap: 6,
   },
-  flaggedChip: {
-    alignSelf: 'flex-start',
-    borderWidth: 1,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: radius.sm,
-  },
-  flaggedChipText: {
-    ...typography.labelSm,
-    fontWeight: '700',
-  },
+  flaggedChipText: { ...typography.action, color: colors.onSurface },
   flaggedRoleBadge: {
     alignSelf: 'flex-start',
     flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'center',
     backgroundColor: colors.surfaceContainerLow,
     paddingHorizontal: 8,
@@ -2173,14 +2144,14 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     borderWidth: 1,
     borderColor: colors.outlineVariant,
-    borderLeftWidth: 4,
     padding: 14,
     gap: 4,
   },
   additiveHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: 8,
     marginBottom: 2,
   },
   additiveCodeBadge: {
@@ -2195,8 +2166,9 @@ const styles = StyleSheet.create({
     color: colors.onSurface,
   },
   riskBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
+    alignSelf: 'flex-start',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
     borderRadius: radius.full,
   },
   riskBadgeText: {
@@ -2264,6 +2236,7 @@ const styles = StyleSheet.create({
     color: colors.onSurfaceVariant,
   },
   toggleRawButton: {
+    minHeight: spacing.touchTarget,
     alignSelf: 'flex-start',
     paddingVertical: 6,
     paddingHorizontal: 10,
@@ -2309,6 +2282,7 @@ const styles = StyleSheet.create({
     textAlign: 'left',
   },
   bottomCloseButton: {
+    minHeight: spacing.touchTarget,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.surfaceContainerLowest,
@@ -2369,8 +2343,9 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   nutritionCard: {
-    flexBasis: '47%',
+    flexBasis: '48%',
     flexGrow: 1,
+    minWidth: 0,
     backgroundColor: colors.surfaceContainerLowest,
     borderRadius: radius.xl,
     padding: 12,
@@ -2378,8 +2353,11 @@ const styles = StyleSheet.create({
     borderColor: colors.outlineVariant,
     gap: 4,
   },
+  nutritionCardFull: { flexBasis: '100%' },
   nutritionCardHeader: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 4,
     justifyContent: 'space-between',
     alignItems: 'center',
   },
@@ -2402,7 +2380,6 @@ const styles = StyleSheet.create({
   },
   nutritionEvalBadgeText: {
     ...typography.labelSm,
-    fontSize: 10,
     fontWeight: '700',
   },
   nutritionEvaluationsCard: {
@@ -2412,8 +2389,6 @@ const styles = StyleSheet.create({
     padding: 14,
     borderWidth: 1,
     borderColor: colors.outlineVariant,
-    borderLeftWidth: 4,
-    borderLeftColor: colors.primary,
     gap: 8,
   },
   evaluationsHeader: {
@@ -2423,6 +2398,7 @@ const styles = StyleSheet.create({
   },
   evaluationsTitle: {
     ...typography.headlineSm,
+    flexShrink: 1,
     fontSize: 14,
     lineHeight: 20,
     color: colors.onSurface,
@@ -2474,13 +2450,14 @@ const styles = StyleSheet.create({
   },
   stagingPhotosRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 12,
     justifyContent: 'center',
     marginVertical: 6,
   },
   stagingPhotoCard: {
     width: 130,
-    height: 155,
+    minHeight: 155,
     borderRadius: radius.lg,
     backgroundColor: colors.surfaceContainerLow,
     overflow: 'hidden',
@@ -2494,13 +2471,15 @@ const styles = StyleSheet.create({
     resizeMode: 'cover',
   },
   stagingPhotoLabel: {
-    height: 35,
+    minHeight: 35,
+    padding: 4,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.surfaceContainerLowest,
   },
   stagingPhotoLabelText: {
     ...typography.labelSm,
+    textAlign: 'center',
     color: colors.onSurfaceVariant,
     fontWeight: '600',
     fontSize: 11,
@@ -2509,16 +2488,16 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 6,
     right: 6,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    width: spacing.touchTarget,
+    height: spacing.touchTarget,
+    borderRadius: radius.lg,
     backgroundColor: 'rgba(0,0,0,0.65)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   stagingAddPhotoCard: {
     width: 130,
-    height: 155,
+    minHeight: 155,
     borderRadius: radius.lg,
     borderWidth: 2,
     borderStyle: 'dashed',
@@ -2558,6 +2537,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   stagingClearButton: {
+    minHeight: spacing.touchTarget,
     paddingVertical: 10,
     paddingHorizontal: 16,
   },
@@ -2665,58 +2645,42 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
   accountLogoutBtn: {
-    marginLeft: 4,
-    padding: 2,
+    width: spacing.touchTarget,
+    height: spacing.touchTarget,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   modeTabsContainer: {
     flexDirection: 'row',
     width: '100%',
-    backgroundColor: colors.surfaceContainerLow,
-    borderRadius: radius.lg,
+    backgroundColor: colors.surfaceContainerLowest,
+    borderRadius: radius.xl,
     padding: 4,
     borderWidth: 1,
-    borderColor: colors.outlineVariant,
-    marginBottom: 18,
+    borderColor: colors.divider,
+    marginBottom: 16,
     gap: 6,
   },
+  modeTabsStacked: { flexDirection: 'column' },
   modeTabButton: {
     flex: 1,
+    minWidth: 0,
+    minHeight: spacing.touchTarget,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
     gap: 8,
-    paddingVertical: 10,
-    paddingHorizontal: 10,
-    borderRadius: radius.md,
+    padding: 10,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: 'transparent',
   },
-  modeTabButtonActive: {
-    backgroundColor: colors.primary,
-    elevation: 2,
-    shadowColor: '#000000',
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 1 },
-  },
-  modeTabTextCol: {
-    alignItems: 'flex-start',
-  },
-  modeTabTitle: {
-    ...typography.labelMd,
-    fontSize: 12.5,
-    fontWeight: '700',
-    color: colors.onSurface,
-  },
-  modeTabTitleActive: {
-    color: colors.onPrimary,
-  },
-  modeTabSub: {
-    ...typography.labelSm,
-    fontSize: 10.5,
-    color: colors.onSurfaceVariant,
-  },
-  modeTabSubActive: {
-    color: 'rgba(255,255,255,0.88)',
-  },
+  modeTabButtonStacked: { flex: 0 },
+  modeTabButtonActive: { backgroundColor: colors.selectedSurface, borderColor: colors.secondary },
+  modeTabTextCol: { flex: 1, minWidth: 0, gap: 2 },
+  modeTabTitle: { ...typography.action, color: colors.onSurface },
+  modeTabTitleActive: { color: colors.primary },
+  modeTabSub: { ...typography.labelSm, color: colors.onSurfaceVariant },
+  modeTabSubActive: { color: colors.onSecondaryFixedVariant },
   mealPreWarningCard: {
     width: '100%',
     flexDirection: 'row',
@@ -2756,8 +2720,6 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     borderWidth: 1,
     borderColor: colors.outlineVariant,
-    borderLeftWidth: 4,
-    borderLeftColor: colors.primary,
     padding: 14,
     gap: 8,
   },
@@ -2768,6 +2730,7 @@ const styles = StyleSheet.create({
   },
   mealItemTitle: {
     ...typography.headlineSm,
+    flexShrink: 1,
     fontSize: 16,
     lineHeight: 22,
     color: colors.onSurface,
@@ -2807,8 +2770,6 @@ const styles = StyleSheet.create({
     padding: 14,
     borderWidth: 1,
     borderColor: colors.outlineVariant,
-    borderLeftWidth: 4,
-    borderLeftColor: colors.risk.medium,
     gap: 8,
   },
 });

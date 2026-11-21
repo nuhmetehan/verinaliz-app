@@ -11,12 +11,37 @@ import { DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts } from 'expo-font';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { LEGAL_CONSENT_STORAGE_KEY, LegalModal } from '@/components/legal-modal';
 
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
+import { colors } from '@/theme/theme';
+
 SplashScreen.preventAutoHideAsync();
 
+const navigationTheme = {
+  ...DefaultTheme,
+  colors: {
+    ...DefaultTheme.colors,
+    background: colors.background,
+    card: colors.surfaceContainerLowest,
+    border: colors.divider,
+    text: colors.onSurface,
+    primary: colors.primary,
+  },
+};
+
 export default function RootLayout() {
+  const [accepted, setAccepted] = useState<boolean | null>(null);
+  useEffect(() => {
+    void AsyncStorage.getItem(LEGAL_CONSENT_STORAGE_KEY)
+      .then(value => setAccepted(value === 'true')).catch(() => setAccepted(false));
+  }, []);
+  const acceptLegal = async () => {
+    await AsyncStorage.setItem(LEGAL_CONSENT_STORAGE_KEY, 'true').catch(() => {});
+    setAccepted(true);
+  };
   const [fontsLoaded] = useFonts({
     PlusJakartaSans_600SemiBold,
     PlusJakartaSans_700Bold,
@@ -31,20 +56,20 @@ export default function RootLayout() {
     }
   }, [fontsLoaded]);
 
-  if (!fontsLoaded) {
+  if (!fontsLoaded || accepted === null) {
     return null;
   }
 
   return (
-    <ThemeProvider value={DefaultTheme}>
+    <ThemeProvider value={navigationTheme}>
       <StatusBar style="dark" />
       <AnimatedSplashOverlay />
-      <Stack screenOptions={{ headerShown: false }}>
+      {accepted ? <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="product/[barcode]" />
         <Stack.Screen name="favorites" />
         <Stack.Screen name="auth-callback" />
-      </Stack>
+      </Stack> : <LegalModal visible isFirstLaunch onAccept={acceptLegal} onClose={() => {}} />}
     </ThemeProvider>
   );
 }

@@ -8,7 +8,7 @@ const source = ts.transpileModule(readFileSync('src/app/auth-callback.tsx', 'utf
   compilerOptions: { jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.CommonJS },
 }).outputText;
 
-function fixture({ complete = async () => ({ session: {} }), params = { access_token: 'test' } } = {}) {
+function fixture({ complete = async () => ({ session: {} }), params = { code: 'mock-authorization-code' } } = {}) {
   const effects = [], routes = [], alerts = [];
   const timers = new Map();
   let timerId = 0;
@@ -19,7 +19,7 @@ function fixture({ complete = async () => ({ session: {} }), params = { access_t
     'expo-router': { router: { replace: path => routes.push(path) }, useLocalSearchParams: () => params },
     'react-native': { StyleSheet: { create: value => value }, Alert: { alert: (...args) => alerts.push(args) } },
     '@/theme/theme': { colors: {}, typography: {} },
-    '@/utils/auth': { completeAuthWithTokens: complete, completeAuthFromCallbackUrl: complete },
+    '@/utils/auth': { completeAuthCode: complete },
   };
   const exports = {};
   vm.runInNewContext(source, {

@@ -16,25 +16,28 @@
 
 export const colors = {
   // Yüzeyler (açık tema)
-  background: '#f8f9fa',
-  surface: '#f8f9fa',
+  background: '#f6f8f7',
+  surface: '#f6f8f7',
   surfaceContainerLowest: '#ffffff', // Kartlar için saf beyaz
   surfaceContainerLow: '#f3f4f5',
   surfaceContainer: '#edeeef',
   surfaceContainerHigh: '#e7e8e9',
   surfaceContainerHighest: '#e1e3e4',
   surfaceVariant: '#e1e3e4',
-  headerSurface: '#E8F3ED',
+  headerSurface: '#edf4f0',
+  selectedSurface: '#e1efe7',
+  divider: '#dbe4df',
+  cameraSurface: '#0d211b',
 
   // Metin / ikon üstü renkler
   onSurface: '#191c1d',       // Ana metin
-  onSurfaceVariant: '#414846', // İkincil metin
+  onSurfaceVariant: '#495a52', // İkincil metin
   onBackground: '#191c1d',
   inverseSurface: '#2e3132',
   inverseOnSurface: '#f0f1f2',
 
-  outline: '#717976',
-  outlineVariant: '#c1c8c4',
+  outline: '#5b6c64',
+  outlineVariant: '#c4d0c9',
 
   // Birincil — Koyu Orman Yeşili
   primary: '#01261f',
@@ -77,8 +80,13 @@ export const colors = {
   // Risk semantik sistemi — trafik ışığı mantığı
   risk: {
     safe: '#01261f',   // Güvenli — Koyu Orman Yeşili
-    medium: '#ff781c', // Uyarı / Tartışmalı — Turuncu
+    medium: '#735300', // Uyarı / Tartışmalı — Kehribar
     high: '#ba1a1a',   // Yüksek Risk — Kırmızı
+  },
+  riskSurface: {
+    safe: '#e1efe7',
+    medium: '#fff0b8',
+    high: '#fceae8',
   },
 } as const;
 
@@ -135,13 +143,18 @@ export const typography = {
     fontSize: 12,
     fontWeight: '600' as const,
     lineHeight: 16,
-    letterSpacing: 0.6, // 0.05em × 12px
+    letterSpacing: 0.15,
   },
   labelSm: {
     fontFamily: 'Inter_600SemiBold',
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: '600' as const,
-    lineHeight: 14,
+    lineHeight: 16,
+  },
+  action: {
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 14,
+    lineHeight: 20,
   },
   dataDisplay: {
     fontFamily: 'Inter_700Bold',
@@ -169,6 +182,7 @@ export const spacing = {
   gutter: 12,
   mobileMargin: 20,
   tabletMargin: 32,
+  touchTarget: 48,
 } as const;
 
 // Elevation & Depth — DESIGN.md açık tema gölgeleri
@@ -179,7 +193,7 @@ export const elevation = {
     shadowOpacity: 0.04,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 2 },
-    elevation: 2, // Android karşılığı
+    elevation: 1, // Android karşılığı
     backgroundColor: colors.surfaceContainerLowest,
   },
   // Level 2: Aktif elemanlar / modaller

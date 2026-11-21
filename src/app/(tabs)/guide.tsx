@@ -1,8 +1,10 @@
+import { Feather } from '@expo/vector-icons';
 import axios from 'axios';
 import { useEffect, useMemo, useState } from 'react';
 import {
   Modal,
   Pressable,
+  ScrollView,
   SectionList,
   StyleSheet,
   Text,
@@ -17,7 +19,7 @@ import { ContentSkeleton } from '@/components/content-skeleton';
 import { ScreenHeader } from '@/components/screen-header';
 import { SideDrawer } from '@/components/side-drawer';
 import { WelcomeGuideModal } from '@/components/welcome-guide-modal';
-import { type AdditiveRisk, riskLabels } from '@/constants/riskLabels';
+import { getAdditiveRiskBadge, type AdditiveRisk } from '@/constants/riskLabels';
 import { colors, elevation, radius, spacing, typography } from '@/theme/theme';
 import { parseIngredientDescription } from '@/utils/ingredientFormat';
 
@@ -226,27 +228,10 @@ const RISKY_INGREDIENTS_CATALOG: CommonAdditive[] = [
   },
 ];
 
-function getRiskColor(risk: string | null | undefined) {
-  switch (risk) {
-    case 'dangerous':
-    case 'high':
-      return colors.risk.high;
-    case 'controversial':
-    case 'medium':
-      return colors.risk.medium;
-    case 'safe':
-      return colors.risk.safe;
-    default:
-      return null;
-  }
-}
-
-function getRiskLabel(risk: string | null | undefined): string | null {
-  if (!risk) return null;
-  if (risk === 'dangerous' || risk === 'high') return riskLabels.dangerous;
-  if (risk === 'controversial' || risk === 'medium') return riskLabels.controversial;
-  if (risk === 'safe') return riskLabels.safe;
-  return null;
+function getGuideRiskBadge(risk?: AdditiveRisk | 'high' | 'medium' | null) {
+  if (risk === 'high') return getAdditiveRiskBadge('dangerous');
+  if (risk === 'medium') return getAdditiveRiskBadge('controversial');
+  return getAdditiveRiskBadge(risk);
 }
 
 export default function GuideScreen() {
@@ -256,6 +241,7 @@ export default function GuideScreen() {
   const [retryKey, setRetryKey] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedAdditive, setSelectedAdditive] = useState<GuideAdditive | null>(null);
+  const selectedRiskBadge = getGuideRiskBadge(selectedAdditive?.risk);
   const [drawerVisible, setDrawerVisible] = useState(false);
   const [isGuideVisible, setIsGuideVisible] = useState(false);
   const [isLegalModalVisible, setIsLegalModalVisible] = useState(false);
@@ -331,21 +317,25 @@ export default function GuideScreen() {
     <>
     <SafeAreaView style={styles.screen} edges={['top']}>
       <ScreenHeader title="Katkı Rehberi" subtitle="İçerikleri daha yakından tanıyın" onNavigate={() => setDrawerVisible(true)}>
-        <TextInput
-          accessibilityLabel="E-kodu veya madde adı ara"
-          autoCapitalize="none"
-          autoCorrect={false}
-          clearButtonMode="while-editing"
-          placeholder="E-kodu veya madde adı ara"
-          placeholderTextColor={colors.outline}
-          style={styles.searchInput}
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-        />
+        <View style={styles.searchField}>
+          <Feather name="search" size={19} color={colors.onSurfaceVariant} />
+          <TextInput
+            accessibilityLabel="E-kodu veya madde adı ara"
+            autoCapitalize="none"
+            autoCorrect={false}
+            clearButtonMode="while-editing"
+            placeholder="E-kodu veya madde adı ara"
+            placeholderTextColor={colors.outline}
+            style={styles.searchInput}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+          />
+        </View>
       </ScreenHeader>
       {isLoading ? <View style={styles.loadingContent}><ContentSkeleton label="Katkı rehberi yükleniyor…" /></View> : errorMessage ? <View style={styles.stateContainer}>
-        <Text style={styles.stateText}>{errorMessage}</Text>
-        {errorMessage && !isLoading ? <Pressable accessibilityRole="button" style={styles.retryButton} onPress={() => setRetryKey((value) => value + 1)}>
+        <Feather name="alert-circle" size={26} color={colors.primary} />
+        <Text accessibilityRole="alert" style={styles.stateText}>{errorMessage}</Text>
+        {errorMessage && !isLoading ? <Pressable accessibilityRole="button" style={({ pressed }) => [styles.retryButton, pressed && styles.retryPressed]} onPress={() => setRetryKey((value) => value + 1)}>
           <Text style={styles.retryButtonText}>Tekrar dene</Text>
         </Pressable> : null}
       </View> : <SectionList
@@ -357,27 +347,37 @@ export default function GuideScreen() {
         ListFooterComponent={<AssessmentSources />}
         ListEmptyComponent={
           <View style={styles.emptyResults}>
-            <Text style={styles.emptyResultsText}>{'Aramanıza uygun katkı maddesi bulunamadı.'}</Text>
+            <Feather name="search" size={25} color={colors.primary} />
+            <Text style={styles.emptyResultsText}>Aramanıza uygun katkı maddesi bulunamadı.</Text>
           </View>
         }
         renderSectionHeader={({ section }) => (
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>{section.title}</Text>
+            <Text accessibilityRole="header" style={styles.sectionTitle}>{section.title}</Text>
             <Text style={styles.sectionCount}>{section.data.length}</Text>
           </View>
         )}
         renderItem={({ item }) => {
-          const riskColor = getRiskColor(item.risk);
+          const riskBadge = getGuideRiskBadge(item.risk);
           const hasCode = Boolean(item.code && item.code.trim());
 
           return (
             <Pressable
               accessibilityRole="button"
+              accessibilityLabel={[item.code, item.name, riskBadge?.label].filter(Boolean).join(', ')}
               style={({ pressed }) => [styles.additiveRow, pressed && styles.additiveRowPressed]}
               onPress={() => setSelectedAdditive(item)}>
-              {riskColor ? <View style={[styles.riskDot, { backgroundColor: riskColor }]} /> : null}
-              {hasCode ? <Text style={styles.code}>{item.code}</Text> : null}
-              <Text style={styles.additiveName}>{item.name}</Text>
+              <View style={styles.additiveContent}>
+                {hasCode && <Text style={styles.code}>{item.code}</Text>}
+                <Text style={styles.additiveName}>{item.name}</Text>
+                {riskBadge && (
+                  <View style={[styles.riskBadge, { backgroundColor: riskBadge.bg }]}>
+                    <View style={[styles.riskDot, { backgroundColor: riskBadge.color }]} />
+                    <Text style={[styles.riskLabel, { color: riskBadge.color }]}>{riskBadge.label}</Text>
+                  </View>
+                )}
+              </View>
+              <Feather name="chevron-right" size={19} color={colors.outline} />
             </Pressable>
           );
         }}
@@ -389,16 +389,17 @@ export default function GuideScreen() {
         visible={selectedAdditive !== null}
         onRequestClose={() => setSelectedAdditive(null)}>
         <View style={styles.modalBackdrop}>
-          <View style={styles.modalCard}>
+          <ScrollView style={styles.modalCard} contentContainerStyle={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>
                 {selectedAdditive?.code ? 'Katkı maddesi' : 'Bileşen detayı'}
               </Text>
               <Pressable
+                accessibilityRole="button"
                 accessibilityLabel="Detayı kapat"
-                hitSlop={10}
+                style={({ pressed }) => [styles.modalCloseButtonIcon, pressed && styles.additiveRowPressed]}
                 onPress={() => setSelectedAdditive(null)}>
-                <Text style={styles.modalClose}>{'\u00d7'}</Text>
+                <Feather name="x" size={21} color={colors.primary} />
               </Pressable>
             </View>
 
@@ -416,16 +417,13 @@ export default function GuideScreen() {
               <Text style={styles.detailLabel}>{'Kategori'}</Text>
               <Text style={styles.detailValue}>{selectedAdditive?.category}</Text>
             </View>
-            {selectedAdditive?.risk ? (
+            {selectedRiskBadge ? (
               <View style={styles.detailBlock}>
                 <Text style={styles.detailLabel}>{'Risk değerlendirmesi'}</Text>
-                <Text
-                  style={[
-                    styles.detailValue,
-                    { color: getRiskColor(selectedAdditive.risk) ?? colors.onSurface },
-                  ]}>
-                  {getRiskLabel(selectedAdditive.risk)}
-                </Text>
+                <View style={[styles.riskBadge, { backgroundColor: selectedRiskBadge.bg }]}>
+                  <View style={[styles.riskDot, { backgroundColor: selectedRiskBadge.color }]} />
+                  <Text style={[styles.riskLabel, { color: selectedRiskBadge.color }]}>{selectedRiskBadge.label}</Text>
+                </View>
               </View>
             ) : null}
             {selectedAdditive?.description ? (() => {
@@ -446,10 +444,10 @@ export default function GuideScreen() {
               );
             })() : null}
 
-            <Pressable style={styles.modalCloseButton} onPress={() => setSelectedAdditive(null)}>
+            <Pressable accessibilityRole="button" style={({ pressed }) => [styles.modalCloseButton, pressed && styles.additiveRowPressed]} onPress={() => setSelectedAdditive(null)}>
               <Text style={styles.modalCloseButtonText}>{'Kapat'}</Text>
             </Pressable>
-          </View>
+          </ScrollView>
         </View>
       </Modal>
     </SafeAreaView>
@@ -486,26 +484,33 @@ const styles = StyleSheet.create({
     paddingBottom: 48,
   },
   body: { flex: 1, backgroundColor: colors.background },
-  // Arama çubuğu: beyaz zemin, açık gri border, koyu metin
+  searchField: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 14,
+    borderWidth: 1,
+    borderColor: colors.outline,
+    borderRadius: radius.lg,
+    backgroundColor: colors.surfaceContainerLowest,
+  },
   searchInput: {
     ...typography.bodyMd,
-    minHeight: 48,
-    borderWidth: 1,
-    borderColor: colors.outlineVariant, // #c1c8c4
-    borderRadius: radius.xl,
-    paddingHorizontal: 16,
-    color: colors.onSurface, // #191c1d
-    backgroundColor: colors.surfaceContainerLowest, // #ffffff
+    flex: 1,
+    minWidth: 0,
+    minHeight: spacing.touchTarget,
+    color: colors.onSurface,
   },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    gap: 8,
     marginTop: spacing.stackGap,
     marginBottom: 8,
   },
   // Kategori başlığı: PlusJakartaSans_600SemiBold, #191c1d (headlineMd token'dan gelir)
-  sectionTitle: { ...typography.headlineMd, color: colors.onSurface }, // #191c1d
+  sectionTitle: { ...typography.headlineSm, flexShrink: 1, color: colors.onSurface }, // #191c1d
   // Madde sayısı çipi: açık nane zemin, nane yeşili metin
   sectionCount: {
     ...typography.labelSm,
@@ -515,7 +520,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     textAlign: 'center',
     color: colors.secondary, // #416656
-    backgroundColor: colors.secondaryContainer, // #c3ecd7
+    backgroundColor: colors.selectedSurface, // #c3ecd7
     borderRadius: radius.full,
   },
   // Katkı maddesi satırı: beyaz zemin, hafif gölge, 16px köşe
@@ -529,18 +534,31 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: radius.xl, // 16px — liste satırı için uygun
   },
-  additiveRowPressed: { opacity: 0.72 },
-  // Risk renk noktası — tema token'larından gelir: safe #01261f, medium #ff781c, high #ba1a1a
-  riskDot: {
-    width: 10,
-    height: 10,
+  additiveRowPressed: { backgroundColor: colors.selectedSurface },
+  additiveContent: { flex: 1, minWidth: 0, gap: 4 },
+  riskBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    maxWidth: '100%',
+    gap: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
     borderRadius: radius.full,
   },
-  code: { ...typography.labelMd, minWidth: 52, color: colors.primary }, // #01261f
-  additiveName: { ...typography.bodyMd, flex: 1, color: colors.onSurface }, // #191c1d
+  riskLabel: { ...typography.labelMd, flexShrink: 1 },
+  riskDot: {
+    width: 7,
+    height: 7,
+    borderRadius: radius.full,
+  },
+  code: { ...typography.labelMd, color: colors.primary }, // #01261f
+  additiveName: { ...typography.bodyMd, fontFamily: typography.action.fontFamily, color: colors.onSurface }, // #191c1d
   // Boş arama sonucu kartı: beyaz zemin, 16px köşe
   emptyResults: {
     ...elevation.level1Card,
+    gap: 10,
+    alignItems: 'center',
     marginTop: spacing.stackGap,
     padding: spacing.cardInternal,
     borderRadius: radius.xl, // 16px
@@ -557,12 +575,15 @@ const styles = StyleSheet.create({
   },
   stateText: { ...typography.bodyLg, color: colors.onSurface, textAlign: 'center' },
   retryButton: {
-    borderRadius: radius.full,
+    minHeight: spacing.touchTarget,
+    justifyContent: 'center',
+    borderRadius: radius.lg,
     paddingHorizontal: 18,
     paddingVertical: 12,
     backgroundColor: colors.primary, // #01261f
   },
-  retryButtonText: { ...typography.bodyMd, color: colors.onPrimary, fontWeight: '700' },
+  retryPressed: { backgroundColor: colors.primaryContainer },
+  retryButtonText: { ...typography.action, color: colors.onPrimary },
   // Modal arka planı: %40 opak siyah — açık tema için daha hafif
   modalBackdrop: {
     flex: 1,
@@ -572,22 +593,22 @@ const styles = StyleSheet.create({
   },
   // Modal kartı: saf beyaz (#ffffff), 24px köşe, hafif gölge
   modalCard: {
-    ...elevation.level1Card,
-    gap: spacing.inlineGap,
+    flexGrow: 0,
     width: '100%',
     maxWidth: 440,
+    maxHeight: '90%',
     alignSelf: 'center',
-    padding: spacing.cardInternal,
     borderRadius: radius.xxl, // 24px
     backgroundColor: colors.surfaceContainerLowest, // #ffffff explicit
   },
+  modalContent: { padding: spacing.cardInternal, gap: spacing.inlineGap },
   modalHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  modalTitle: { ...typography.headlineMd, color: colors.onSurface }, // #191c1d
-  modalClose: { fontSize: 30, lineHeight: 30, color: colors.onSurfaceVariant }, // #414846
+  modalTitle: { ...typography.headlineSm, flexShrink: 1, color: colors.onSurface }, // #191c1d
+  modalCloseButtonIcon: { width: spacing.touchTarget, height: spacing.touchTarget, alignItems: 'center', justifyContent: 'center', borderRadius: radius.lg, backgroundColor: colors.surfaceContainerLow },
   // Detay bloğu: çok açık zemin (#f3f4f5), koyu metin
   detailBlock: {
     gap: 4,
@@ -602,10 +623,10 @@ const styles = StyleSheet.create({
   modalCloseButton: {
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 44,
+    minHeight: spacing.touchTarget,
     marginTop: 4,
-    borderRadius: radius.full,
-    backgroundColor: colors.secondaryContainer, // #c3ecd7
+    borderRadius: radius.lg,
+    backgroundColor: colors.selectedSurface, // #c3ecd7
   },
   modalCloseButtonText: {
     ...typography.bodyMd,

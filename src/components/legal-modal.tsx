@@ -2,6 +2,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useState } from 'react';
 import {
   Modal,
+  Linking,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -11,7 +12,7 @@ import {
 
 import { colors, elevation, radius, spacing, typography } from '@/theme/theme';
 
-export const LEGAL_CONSENT_STORAGE_KEY = '@foodscan/has_accepted_legal_v4_photo_privacy';
+export const LEGAL_CONSENT_STORAGE_KEY = '@foodscan/has_accepted_legal_v5_cloudflare_20261121';
 
 export type LegalTab = 'privacy' | 'terms';
 
@@ -31,6 +32,8 @@ type LegalSection = {
 
 const PRIVACY_SECTIONS: LegalSection[] = [
   { id: 'privacy-photo-review', title: 'Fotoğraf kontrolü ve teknik korumalar', content: 'Her yeni fotoğraf grubu ve analiz türü için fotoğrafları inceleyip veri aktarımını ayrıca onaylamanız gerekir. Fotoğrafa dokunarak tam ekranda inceleyebilirsiniz. Sunucu görseli doğrular, yeniden kodlar ve EXIF/GPS gibi metaverileri Cloudflare’a göndermeden önce kaldırır; özgün dosya adı aktarılmaz. Görüntünün içindeki kişileri veya kişisel yazıları otomatik olarak tespit etme ya da anonimleştirme garantisi verilmez. Bu nedenle kişisel, hassas veya gizli bilgi içeren fotoğrafları göndermeyin. Teknik kullanım ölçümü açıksa analiz türü, rota, başarı durumu, varsa token veya neuron sayıları ve tahmini maliyet gibi sayaçlar kaydedilir; fotoğraf, kullanıcı kimliği, komut veya yanıt metni bu ölçüme eklenmez.' },
+  { id: 'privacy-basis', title: 'Toplama yöntemi ve hukuki sebepler', content: 'Hesap, ürün sorgusu ve bildirim verileri sizden ve seçtiğiniz giriş sağlayıcısından otomatik olarak alınır. Talep ettiğiniz hizmeti sunmak için gerekli işleme KVKK m.5/2-c, güvenlik ve kötüye kullanım önlemleri m.5/2-f, yasal yükümlülükler m.5/2-ç kapsamındadır. İsteğe bağlı fotoğraf analizinde kişisel veri işlendiği ölçüde dayanak gönderim öncesi açık rızanızdır (m.5/1). Sonraki analizlerden vazgeçebilir ve iletişim adresimizden rızanızı geri alabilirsiniz. Bu seçim barkod ve rehber erişimini etkilemez. Hizmet sağlayıcıları Türkiye dışında veri işleyebilir. Aktarım ve KVKK m.9 kapsamındaki güvenceler hakkında bize yazabilirsiniz.' },
+  { id: 'privacy-rights', title: 'KVKK m.11 kapsamındaki başvurular', content: 'İşlemeyi, amacını, amacına uygun kullanımı ve yurt içi veya dışındaki alıcıları öğrenebilir, yanlış veya eksik verilerin düzeltilmesini, şartları oluştuğunda silinmesini veya yok edilmesini, ilgili işlemlerin alıcılara bildirilmesini isteyebilirsiniz. Sadece otomatik analizle aleyhinize sonuç doğmasına itiraz edebilir ve hukuka aykırı işlemeden doğan zararınızın giderilmesini talep edebilirsiniz.' },
   { id: 'privacy-email', title: 'E-posta ile giriş', content: 'Önceden oluşturulmuş e-posta hesaplarıyla giriş yapılabilir. E-posta ve şifre HTTPS üzerinden Verinaliz sunucusuna ve doğrulama için Supabase Auth hizmetine iletilir. Şifre uygulamada veya Verinaliz veritabanında saklanmaz, uygulama hata kayıtlarına yazılmaz; doğrulama ve güvenli saklama Supabase Auth tarafından yürütülür. Bu şifre Google hesabı şifresi değildir. E-posta hesaplarında da aynı oturum, kota ve hesap silme işlemleri uygulanır.' },
   { id: 'privacy-updates', title: 'Uygulama güncellemeleri (Expo)', content: 'Uygulama güncellemelerini kontrol etmek ve indirmek için Expo / EAS Update sunucularına bağlanılır. IP adresi, platform, çalışma zamanı/sürüm ve güncelleme bilgileri ile EAS istemci/kurulum kimliği işlenebilir. Başlatılamayan önceki güncellemeye ait sınırlı teknik hata bilgisi de gönderilebilir. Bu mekanizma üzerinden analiz fotoğrafı veya tarama geçmişi yüklenmez. Sağlayıcı tarafındaki saklama Expo hizmet koşulları ve yapılandırmasına bağlıdır.' },
   { id: 'privacy-provider', title: 'Cloudflare ile görsel işleme', content: 'Cloudflare Workers AI etiket ve öğün fotoğraflarını işler. AI Gateway kullanıldığında istek ve yanıt gövdelerinin kaydı kapalıdır. Cloudflare faturalandırma için teknik kullanım kayıtları tutabilir. Sağlayıcı yurt dışında veri işleyebilir.' },
@@ -45,13 +48,13 @@ const PRIVACY_SECTIONS: LegalSection[] = [
     id: 'privacy-1bc',
     title: '1.B & 1.C. Kamera, Barkod ve Bildirimler',
     content:
-      '• **Kamera ve Barkod Taraması:** Kameranız barkod okuma amacıyla kullanıldığında görüntü işleme doğrudan cihazınız üzerinde (on-device) yerel olarak gerçekleşir. Kamera akışı hiçbir sunucuya aktarılmaz veya kaydedilmez. Okunan barkod ürün sorgusu için sunucumuza ve gerektiğinde Open Food Facts / Open Beauty Facts servislerine gönderilir.\n\n• **Eksik Ürün Bildirimleri (Topluluk Katkıları):** Veritabanında bulunmayan bir ürünü bildirmek için sunulan formlar tamamen metin tabanlıdır. AI sonucu bildirimlerinde de yalnızca sizin yazdığınız açıklama, analiz ve bildirim türü inceleme amacıyla kaydedilir; fotoğraf, otomatik analiz kopyası, hesap kimliği veya e-posta bildirime eklenmez. Bildirimler yönetici incelemesinden sonra silinir. Gönderilen metin formları ve hata bildirimleri hesabınızla, cihazınızla veya IP adresinizle ilişkilendirilmez; bu formlarda sizden kişisel bilgi istenmez. Kayıtlar ürün veritabanının iyileştirilmesi için tutulur; serbest metin alanlarına kişisel bilgi yazmayınız, yanlışlıkla yazılan bilginin silinmesini yayıncının iletişim adresinden talep edebilirsiniz.',
+      '• **Kamera ve Barkod Taraması:** Kameranız barkod okuma amacıyla kullanıldığında görüntü işleme doğrudan cihazınız üzerinde (on-device) yerel olarak gerçekleşir. Kamera akışı hiçbir sunucuya aktarılmaz veya kaydedilmez. Okunan barkod ürün sorgusu için sunucumuza ve gerektiğinde Open Food Facts / Open Beauty Facts servislerine gönderilir. Ürün görselini açtığınızda cihazınız görsel sunucusuna doğrudan bağlanır. Bu sunucu IP adresinizi ve istenen görseli görebilir.\n\n• **Eksik Ürün Bildirimleri (Topluluk Katkıları):** Veritabanında bulunmayan bir ürünü bildirmek için sunulan formlar tamamen metin tabanlıdır. AI sonucu bildirimlerinde de yalnızca sizin yazdığınız açıklama, analiz ve bildirim türü inceleme amacıyla kaydedilir; fotoğraf, otomatik analiz kopyası, hesap kimliği veya e-posta bildirime eklenmez. Bildirimler yönetici incelemesinden sonra silinir. Gönderilen metin formları ve hata bildirimleri hesabınızla, cihazınızla veya IP adresinizle ilişkilendirilmez; bu formlarda sizden kişisel bilgi istenmez. Kayıtlar ürün veritabanının iyileştirilmesi için tutulur; serbest metin alanlarına kişisel bilgi yazmayınız, yanlışlıkla yazılan bilginin silinmesini yayıncının iletişim adresinden talep edebilirsiniz.',
   },
   {
     id: 'privacy-1de',
     title: '1.D, 1.E & 1.F. Hesap Girişi, Kota ve Yerel Depolama',
     content:
-      '• **Google ile Giriş (OAuth 2.0) ve Hesap Bazlı Kota:** Giriş yapan her hesap son yedi gün içinde üç başarılı etiket ve iki başarılı öğün analizi yapabilir. Aynı istekteki iki ambalaj fotoğrafı bir etiket hakkı kullanır. Her hak, kullanıldığı andan yedi gün sonra açılır. Google veya önceden oluşturulmuş e-posta hesabıyla giriş yapılabilir. Giriş yaptığınızda temel hesap bilgileriniz (kullanıcı ID\'si, adınız, e-posta adresiniz ve varsa Google profil fotoğrafı bağlantınız) kimlik doğrulama ve yedi günlük analiz kotanızın takibi amacıyla Supabase üzerinde işlenir; Google şifreniz uygulamamızla asla paylaşılmaz. Barkod tarama ve katkı rehberi özellikleri ise giriş gerektirmeden kullanılabilir. Hesap silindiğinde doğrudan hesap bağlantısı kaldırılır. Yeniden hesap açılması halinde kalan hakları korumak için Google hesap kimliği veya e-posta adresinden türetilen HMAC özeti, analiz türü ve hakkın açılma zamanı saklanır. Bu takma adlı kayıt kişisel veridir. Her analizden yedi gün sonraki 15 dakikalık temizlik döngüsünde silinir. Kesintiden sonra temizlik yeniden başlatılır. İşlemenin dayanağı hizmetin adil kullanımına yönelik meşru menfaattir (KVKK m.5/2-f). İtiraz ve anında silme talebi için {{SUPPORT_EMAIL}} adresine başvurabilirsiniz.\n\n• **Yerel Olarak Saklanan Veriler:** Taranan ürün geçmişiniz, favori ürünleriniz ve geçmiş AI analiz kayıtlarınız (analiz için çektiğiniz fotoğrafların cihazınızdaki bağlantıları ve analiz sonuçları dahil) kendi cihazınızın yerel hafızasında (AsyncStorage) tutulur. Bu geçmiş/favori kayıtları otomatik olarak sunucuya yüklenmez; analiz için çekilen fotoğraf ise Cloudflare’a iletilir. Oturum ve yenileme belirteçleri mobilde işletim sisteminin güvenli depolamasında (SecureStore), webde yalnızca geçici bellekte tutulur; eski yerel oturum kaydı ilk erişimde taşınarak kaldırılır; "Hesaptan Çıkış Yap" işlemi güvenli depolamadaki oturum belirtecinizi cihazdan siler.\n\n• **Güvenlik ve İstek Sınırlama (Rate Limiting):** Hız sınırlama ve bölgesel erişim kontrolü için IP adresi geçici bellekte işlenir. Ülke sunucuda yaklaşık olarak belirlenir; IP adresi bu sorgu için harici bir konum servisine gönderilmez. Railway ve Supabase güvenlik ve işletim amaçlı teknik istek/oturum kayıtları işleyebilir; saklama süresi sağlayıcı yapılandırmasına bağlıdır. Fotoğraf, oturum belirteci ve AI yanıtının tam metni uygulama sunucusunun hata kayıtlarına bilinçli olarak yazılmaz.\n\n• **Admin Oturum Çerezi:** Yalnızca yetkili yöneticiler için HttpOnly güvenlik çerezi kullanılmaktadır. Bu çerez son kullanıcıları etkilemez.',
+      '• **Google ile Giriş (OAuth 2.0) ve Hesap Bazlı Kota:** Giriş yapan her hesap son yedi gün içinde üç başarılı etiket ve iki başarılı öğün analizi yapabilir. Aynı istekteki iki ambalaj fotoğrafı bir etiket hakkı kullanır. Her hak, kullanıldığı andan yedi gün sonra açılır. Google veya önceden oluşturulmuş e-posta hesabıyla giriş yapılabilir. Giriş yaptığınızda temel hesap bilgileriniz (kullanıcı ID\'si, adınız, e-posta adresiniz ve varsa Google profil fotoğrafı bağlantınız) kimlik doğrulama ve yedi günlük analiz kotanızın takibi amacıyla Supabase üzerinde işlenir; Google şifreniz uygulamamızla asla paylaşılmaz. Barkod tarama ve katkı rehberi özellikleri ise giriş gerektirmeden kullanılabilir. Hesap silindiğinde doğrudan hesap bağlantısı kaldırılır. Yeniden hesap açılması halinde kalan hakları korumak için Google hesap kimliği veya e-posta adresinden türetilen HMAC özeti, analiz türü ve hakkın açılma zamanı saklanır. Bu takma adlı kayıt kişisel veridir. Her analizden yedi gün sonraki 15 dakikalık temizlik döngüsünde silinir. Kesintiden sonra temizlik yeniden başlatılır. İşlemenin dayanağı hizmetin adil kullanımına yönelik meşru menfaattir (KVKK m.5/2-f). İtiraz ve anında silme talebi için {{SUPPORT_EMAIL}} adresine başvurabilirsiniz.\n\n• **Yerel Olarak Saklanan Veriler:** Taranan ürün geçmişiniz, favori ürünleriniz ve geçmiş AI analiz kayıtlarınız (analiz için çektiğiniz fotoğrafların cihazınızdaki bağlantıları ve analiz sonuçları dahil) kendi cihazınızın yerel hafızasında (AsyncStorage) tutulur. Bu geçmiş/favori kayıtları otomatik olarak sunucuya yüklenmez; analiz için çekilen fotoğraf ise Cloudflare’a iletilir. Oturum ve yenileme belirteçleri mobilde işletim sisteminin güvenli depolamasında (SecureStore), webde yalnızca geçici bellekte tutulur; eski yerel oturum kaydı ilk erişimde taşınarak kaldırılır; "Hesaptan Çıkış Yap" işlemi güvenli depolamadaki oturum belirtecinizi cihazdan siler.\n\n• **Güvenlik ve İstek Sınırlama (Rate Limiting):** Hız sınırlama için IP adresi geçici bellekte işlenir. Railway ve Supabase güvenlik ve işletim amaçlı teknik istek/oturum kayıtları işleyebilir; saklama süresi sağlayıcı yapılandırmasına bağlıdır. Fotoğraf, oturum belirteci ve AI yanıtının tam metni uygulama sunucusunun hata kayıtlarına bilinçli olarak yazılmaz.\n\n• **Admin Oturum Çerezi:** Yalnızca yetkili yöneticiler için HttpOnly güvenlik çerezi kullanılmaktadır. Bu çerez son kullanıcıları etkilemez.',
   },
   {
     id: 'privacy-2',
@@ -81,7 +84,7 @@ const PRIVACY_SECTIONS: LegalSection[] = [
     id: 'privacy-6',
     title: '6. İletişim',
     content:
-      'Veri sorumlusu: {{DATA_CONTROLLER}}. Yayıncı markası: {{PUBLISHER_NAME}}. Uygulama: Verinaliz. Son güncelleme: 3 Kasım 2026. Gizlilik politikası ile ilgili sorularınız için:\n• **E-posta:** {{SUPPORT_EMAIL}}',
+      'Veri sorumlusu: {{DATA_CONTROLLER}}. Yayıncı markası: {{PUBLISHER_NAME}}. Uygulama: Verinaliz. Son güncelleme: 21 Kasım 2026. Gizlilik politikası ile ilgili sorularınız için:\n• **E-posta:** {{SUPPORT_EMAIL}}',
   },
 ];
 
@@ -150,7 +153,7 @@ function renderFormattedContent(text: string) {
     .replaceAll('{{PUBLISHER_NAME}}', () => process.env.EXPO_PUBLIC_PUBLISHER_NAME?.trim() || missing)
     .split('**');
   if (parts.length === 1) {
-    return <Text style={styles.sectionText}>{text}</Text>;
+    return <Text style={styles.sectionText}>{parts[0]}</Text>;
   }
 
   return (
@@ -257,6 +260,12 @@ function LegalModalContent({
             style={styles.scrollArea}
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}>
+            <Pressable accessibilityRole="link" onPress={() => {
+              const path = activeTab === 'privacy' ? 'privacy' : 'terms';
+              void Linking.openURL(`${process.env.EXPO_PUBLIC_API_URL}/${path}`).catch(() => {});
+            }}>
+              <Text style={styles.sectionTitle}>Tam metni tarayıcıda aç ↗</Text>
+            </Pressable>
             {sections.map((section) => (
               <View key={section.id} style={styles.sectionCard}>
                 <Text style={styles.sectionTitle}>{section.title}</Text>

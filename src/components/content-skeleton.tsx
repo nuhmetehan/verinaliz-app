@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Animated, Easing, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
 
 import { useReducedMotion } from '@/hooks/use-reduced-motion';
-import { colors, radius, spacing, typography } from '@/theme/theme';
+import { colors, radius, typography } from '@/theme/theme';
 
 export function ContentSkeleton({ product = false, label = 'İçerik yükleniyor…' }: { product?: boolean; label?: string }) {
   const reducedMotion = useReducedMotion();
@@ -21,9 +20,9 @@ export function ContentSkeleton({ product = false, label = 'İçerik yükleniyor
   return <View accessibilityRole="progressbar" accessibilityLabel={label} style={styles.container}>
     <Text accessibilityLiveRegion="polite" style={styles.label}>{label}</Text>
     <Animated.View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" pointerEvents="none" style={[styles.blocks, { opacity }]}>
-      {product && <View style={styles.card}>
+      {product && <View style={[styles.card, styles.row]}>
         <View style={styles.image} />
-        <View style={styles.shortLine} /><View style={styles.titleLine} /><View style={styles.line} />
+        <View style={styles.lines}><View style={styles.shortLine} /><View style={styles.titleLine} /><View style={styles.line} /></View>
       </View>}
       {[0, 1, 2].map((row) => <View key={row} style={[styles.card, styles.row]}>
         <View style={styles.thumbnail} />
@@ -33,22 +32,14 @@ export function ContentSkeleton({ product = false, label = 'İçerik yükleniyor
   </View>;
 }
 
-export function ProductLoadingSkeleton() {
-  return <SafeAreaView edges={['top']} style={styles.screen}>
-    <ScrollView contentContainerStyle={styles.content}><ContentSkeleton product label="Ürün bilgileri yükleniyor…" /></ScrollView>
-  </SafeAreaView>;
-}
-
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.background },
-  content: { padding: spacing.mobileMargin },
   container: { gap: 16, width: '100%' },
   label: { ...typography.bodySm, color: colors.onSurfaceVariant },
   blocks: { gap: 16 },
-  card: { padding: 20, borderRadius: radius.xxl, backgroundColor: colors.surfaceContainerLowest, gap: 12 },
+  card: { padding: 20, borderRadius: radius.xl, backgroundColor: colors.surfaceContainerLowest, gap: 12 },
   row: { flexDirection: 'row', alignItems: 'center' },
   thumbnail: { width: 52, height: 52, borderRadius: radius.lg, backgroundColor: colors.surfaceContainerHigh },
-  image: { height: 148, borderRadius: radius.xl, backgroundColor: colors.surfaceContainerHigh, marginBottom: 8 },
+  image: { width: 76, height: 92, borderRadius: radius.lg, backgroundColor: colors.surfaceContainerHigh },
   lines: { flex: 1, gap: 10 },
   titleLine: { width: '85%', height: 20, borderRadius: radius.sm, backgroundColor: colors.surfaceContainerHigh },
   line: { width: '70%', height: 12, borderRadius: radius.sm, backgroundColor: colors.surfaceContainerHigh },
