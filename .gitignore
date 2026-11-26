@@ -1,0 +1,121 @@
+# Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
+
+# AI editor configs (kişisel, repo'ya ait değil)
+.claude/
+/.codex/
+/.cursor/
+/.agent/
+/.agents/
+/.gemini/
+/.impeccable/
+/.vscode/
+/.idea/
+
+# dependencies
+node_modules/
+
+# Expo
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# Native
+.kotlin/
+.gradle/
+*.orig
+*.orig.*
+*.original
+*.bak
+*.jks
+*.keystore
+*.p8
+*.p12
+*.pfx
+*.key
+*.mobileprovision
+*.provisionprofile
+*.pem
+
+# EAS signing and store credentials
+credentials.json
+google-service-account.json
+*service-account*.json
+client_secret*.json
+pc-api-*.json
+google-services.json
+GoogleService-Info.plist
+
+# Metro
+.metro-health-check*
+
+# debug / logs
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+*.log
+/.eslintcache
+
+# macOS
+.DS_Store
+._*
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Local release configuration and original private files
+/app.json
+/app.local.json
+/eas.json
+/eas.local.json
+/.private/
+.env
+.env.*
+!.env.example
+.envrc
+.envrc.*
+
+# typescript
+*.tsbuildinfo
+
+example
+
+# generated native folders
+/ios
+/android
+/modules/*/android/build/
+/modules/*/android/.cxx/
+/modules/*/ios/build/
+/modules/*/build/
+
+# Public documentation allowlist; internal notes stay local by default.
+/docs/*
+!/docs/DESIGN.md
+!/docs/PRIVACY_POLICY.example.md
+!/docs/TERMS_OF_SERVICE.example.md
+/docs/PRIVACY_POLICY.md
+/docs/TERMS_OF_SERVICE.md
+
+# Store submission artwork, exports and machine-specific preparation scripts
+/assets/store-listing/
+/scripts/prepare-play-marketing.cjs
+/scripts/prepare-play-upload.cjs
+
+# Locally downloaded build artifacts
+/release-artifacts/
+*.apk
+*.apks
+*.aab
+*.ipa
+*.tgz
+*.tar.gz
+*.zip
+
+# Python / QA helper caches
+__pycache__/
+*.py[cod]
+
+# Generated test reports
+/coverage/
